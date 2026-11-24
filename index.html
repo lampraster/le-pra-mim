@@ -1,0 +1,2705 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lê pra Mim">
+<title>Lê pra Mim</title>
+<meta name="description" content="Leitor de textos em voz alta, em português do Brasil.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&display=swap">
+<style>
+  /* Layout: uma folha de leitura com marca-texto na frase atual, ajustes numa coluna à direita (abaixo no celular) e os controles presos na borda de baixo. */
+  :root {
+    --paper: #EDF0F5;
+    --surface: #FFFFFF;
+    --surface-2: #F5F7FA;
+    --ink: #172033;
+    --muted: #586277;
+    --line: #D8DEE8;
+    --accent: #2446D6;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #E4EAFF;
+    --marker: #FFE14D;
+    --marker-ink: #172033;
+    --marker-soft: #FFF2B3;
+    --marker-soft-ink: #172033;
+    --read: #6E788E;
+    --good: #1F8A5B;
+    --warn: #B26B00;
+    --toast-bg: #172033;
+    --toast-fg: #FFFFFF;
+    --toast-action: #FFE14D;
+    --shadow: 0 1px 2px rgba(23, 32, 51, .06), 0 10px 28px rgba(23, 32, 51, .07);
+
+    --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+    --font-ui: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-read: "Literata", Georgia, "Times New Roman", serif;
+
+    --radius: 14px;
+    --bar-h: 80px;
+    color-scheme: light;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0E121A;
+      --surface: #161C28;
+      --surface-2: #1C2331;
+      --ink: #E6EAF2;
+      --muted: #9CA6B9;
+      --line: #283043;
+      --accent: #8EA6FF;
+      --accent-ink: #0E121A;
+      --accent-soft: #232D4A;
+      --marker: #F2D34F;
+      --marker-ink: #1A1608;
+      --marker-soft: #3B3418;
+      --marker-soft-ink: #F6E7A8;
+      --read: #7F899E;
+      --good: #4CC28A;
+      --warn: #E5B04A;
+      --toast-bg: #E6EAF2;
+      --toast-fg: #0E121A;
+      --toast-action: #2446D6;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .3);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0E121A;
+    --surface: #161C28;
+    --surface-2: #1C2331;
+    --ink: #E6EAF2;
+    --muted: #9CA6B9;
+    --line: #283043;
+    --accent: #8EA6FF;
+    --accent-ink: #0E121A;
+    --accent-soft: #232D4A;
+    --marker: #F2D34F;
+    --marker-ink: #1A1608;
+    --marker-soft: #3B3418;
+    --marker-soft-ink: #F6E7A8;
+    --read: #7F899E;
+    --good: #4CC28A;
+    --warn: #E5B04A;
+    --toast-bg: #E6EAF2;
+    --toast-fg: #0E121A;
+    --toast-action: #2446D6;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 15px/1.5 var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  .app {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 22px calc(var(--bar-h) + 36px);
+    display: grid;
+    gap: 18px;
+  }
+
+  /* Cabeçalho */
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px 24px;
+  }
+  .brand { min-width: 0; }
+  .brand h1 {
+    margin: 0;
+    font: 800 clamp(1.9rem, 1.3rem + 2.2vw, 2.6rem)/1.05 var(--font-display);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+  .brand h1 .hl {
+    display: inline-block;
+    background: var(--marker);
+    color: var(--marker-ink);
+    padding: 0 .14em .03em;
+    border-radius: .12em;
+    transform: rotate(-1.5deg);
+    margin-left: .03em;
+  }
+  .tagline { margin: 8px 0 0; color: var(--muted); font-size: 1rem; max-width: 52ch; }
+  .voice-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-weight: 500;
+    font-size: .9rem;
+    cursor: pointer;
+  }
+  .voice-chip:hover { border-color: var(--accent); }
+  .voice-chip .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .voice-chip[data-q="good"] .dot { background: var(--good); }
+  .voice-chip[data-q="basic"] .dot { background: var(--warn); }
+  .voice-chip #voiceChipText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .notice {
+    border: 1px solid var(--warn);
+    border-left-width: 4px;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: .93rem;
+    display: grid;
+    gap: 6px;
+  }
+  .notice p { margin: 0; }
+  .notice-title { font-weight: 700; }
+  .notice ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+  .notice-detail { font-size: .8rem; color: var(--muted); }
+
+  /* Folha + ajustes */
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 920px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 310px; }
+    .rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+  }
+
+  .sheet {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .sheet.drop { outline: 2px dashed var(--accent); outline-offset: -8px; }
+  .sheet-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .seg button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: .9rem;
+    padding: 7px 13px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .1); }
+  .sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .btn-ghost {
+    border: 1px solid transparent;
+    background: transparent;
+    font-weight: 500;
+    font-size: .9rem;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--surface-2); border-color: var(--line); }
+  .badge {
+    font-weight: 600;
+    font-size: .7rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px dashed var(--line);
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-right: 4px;
+  }
+
+  .read-view {
+    width: 100%;
+    max-width: 72ch;
+    margin-inline: auto;
+    padding: clamp(20px, 3vw, 38px) clamp(18px, 4vw, 44px);
+    font: 400 clamp(1.08rem, 1rem + .35vw, 1.24rem)/1.78 var(--font-read);
+    font-optical-sizing: auto;
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
+  .read-view p { margin: 0 0 1em; }
+  .read-view p:last-child { margin-bottom: 0; }
+  .s {
+    cursor: pointer;
+    border-radius: 3px;
+    background-image: linear-gradient(var(--marker), var(--marker));
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-size: 0% 100%;
+    transition: color .25s;
+  }
+  .s:hover { background-color: var(--accent-soft); }
+  .s.done { color: var(--read); }
+  .s.now { background-color: var(--marker-soft); color: var(--marker-soft-ink); }
+  .is-playing .s.now {
+    background-size: 100% 100%;
+    color: var(--marker-ink);
+    transition: background-size .55s cubic-bezier(.3, .7, .3, 1), color .25s;
+  }
+  .empty { display: grid; gap: 8px; justify-items: start; padding: 12px 0; font: 400 1rem/1.5 var(--font-ui); color: var(--muted); }
+  .empty p { margin: 0; }
+  .empty .empty-title { font: 700 1.25rem/1.2 var(--font-display); color: var(--ink); }
+
+  .edit-view:focus-within { box-shadow: inset 0 0 0 2px var(--accent-soft); }
+  .edit-view textarea {
+    display: block;
+    width: 100%;
+    min-height: 18em;
+    border: 0;
+    outline: none;
+    resize: vertical;
+    background: transparent;
+    padding: clamp(20px, 3vw, 34px) clamp(18px, 4vw, 44px);
+    font: 400 1.06rem/1.7 var(--font-read);
+  }
+  .edit-view textarea::placeholder { color: var(--muted); }
+
+  .sheet-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px 18px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .84rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .kbd-hint { display: none; }
+  @media (hover: hover) and (min-width: 920px) { .kbd-hint { display: inline; } }
+
+  .rail {
+    min-width: 0;
+    display: grid;
+    gap: 20px;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .rail h2 { margin: 0; font: 700 1.15rem/1.2 var(--font-display); letter-spacing: -0.01em; }
+  .field { display: grid; gap: 8px; min-width: 0; }
+  .field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .label {
+    font-weight: 600;
+    font-size: .74rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  output { font-weight: 700; font-size: .92rem; font-variant-numeric: tabular-nums; }
+  select {
+    width: 100%;
+    min-width: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-weight: 500;
+    font-size: .95rem;
+  }
+  input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+  .ticks { display: flex; justify-content: space-between; font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .note { margin: 0; font-size: .85rem; line-height: 1.5; color: var(--muted); }
+  .btn-line {
+    justify-self: start;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: .9rem;
+    padding: 8px 13px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .btn-line:hover { border-color: var(--accent); }
+  .switch { display: flex; align-items: flex-start; gap: 10px; font-weight: 600; cursor: pointer; }
+  .switch input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); }
+  .neural {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+    min-width: 0;
+  }
+  .neural-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .neural h3 { margin: 0; font: 700 1rem/1.25 var(--font-display); }
+  .pill {
+    flex: none;
+    font-weight: 600;
+    font-size: .74rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .pill[data-s="ready"] { color: var(--good); border-color: var(--good); }
+  .pill[data-s="loading"] { color: var(--accent); border-color: var(--accent); }
+  .pill[data-s="error"] { color: var(--warn); border-color: var(--warn); }
+  .meter { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .meter span { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: inherit; transition: width .2s; }
+  .export { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .neural .btn-line:disabled { opacity: .5; cursor: default; }
+  .help { border-top: 1px solid var(--line); padding-top: 16px; }
+  .help summary { cursor: pointer; font-weight: 600; }
+  .help .note { margin-top: 10px; }
+  .help ul { display: grid; gap: 9px; margin: 10px 0 0; padding-left: 1.1em; font-size: .88rem; line-height: 1.5; }
+  .help strong { font-weight: 700; }
+
+  /* Controles */
+  .transport {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    background: var(--surface);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .transport-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 22px;
+  }
+  .controls { display: flex; align-items: center; gap: 8px; }
+  .tbtn, .speed {
+    height: 44px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .tbtn { width: 44px; display: grid; place-items: center; padding: 0; }
+  .speed { min-width: 62px; padding: 0 10px; font-weight: 700; font-size: .92rem; font-variant-numeric: tabular-nums; }
+  .tbtn:hover, .speed:hover { background: var(--surface-2); }
+  .play {
+    height: 52px;
+    min-width: 138px;
+    padding: 0 22px 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+    font-size: 1.02rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .play:hover { filter: brightness(1.06); }
+  .tbtn:disabled, .play:disabled, .speed:disabled { opacity: .4; cursor: default; }
+  .tbtn svg, .play svg { width: 22px; height: 22px; flex: none; }
+  .progress { flex: 1 1 260px; min-width: 0; display: grid; gap: 4px; }
+  .progress-meta { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--bar-h) + 14px);
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: calc(100% - 32px);
+    padding: 11px 16px;
+    border-radius: 12px;
+    background: var(--toast-bg);
+    color: var(--toast-fg);
+    font-size: .92rem;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, 8px);
+    transition: opacity .2s, transform .2s, visibility .2s;
+  }
+  .toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+  .toast button { border: 0; background: transparent; color: var(--toast-action); font-weight: 700; cursor: pointer; padding: 0; }
+
+  @media (max-width: 560px) {
+    .controls { width: 100%; gap: 6px; }
+    .play { flex: 1; min-width: 0; padding: 0 14px; }
+    .tbtn { width: 42px; height: 42px; }
+    .speed { height: 42px; min-width: 56px; }
+    .sheet-bar { padding: 10px; }
+    .seg button { padding: 7px 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Lê pra <span class="hl">Mim</span></h1>
+      <p class="tagline">Cole um texto e ouça em voz alta, em português do Brasil, frase por frase.</p>
+    </div>
+    <button type="button" class="voice-chip" id="voiceChip" aria-controls="settings" title="Ver ajustes de voz">
+      <span class="dot" aria-hidden="true"></span><span id="voiceChipText">Procurando vozes…</span>
+    </button>
+  </header>
+
+  <div class="notice" id="notice" role="status" hidden></div>
+
+  <main class="layout">
+    <section class="sheet" id="sheet" aria-label="Texto para ouvir">
+      <div class="sheet-bar">
+        <div class="seg" role="tablist" aria-label="Modo">
+          <button type="button" role="tab" id="tabRead" aria-selected="true" aria-controls="readView">Leitura</button>
+          <button type="button" role="tab" id="tabEdit" aria-selected="false" aria-controls="editView">Editar texto</button>
+        </div>
+        <div class="sheet-actions">
+          <span class="badge" id="sampleBadge" hidden>Exemplo</span>
+          <button type="button" class="btn-ghost" id="openBtn">Abrir .txt</button>
+          <input type="file" id="fileInput" accept=".txt,.md,.markdown,text/plain,text/markdown" hidden>
+          <button type="button" class="btn-ghost" id="clearBtn">Limpar</button>
+        </div>
+      </div>
+      <div class="read-view" id="readView" role="tabpanel" aria-labelledby="tabRead" lang="pt-BR"></div>
+      <div class="edit-view" id="editView" role="tabpanel" aria-labelledby="tabEdit" hidden>
+        <label class="sr-only" for="textInput">Texto</label>
+        <textarea id="textInput" lang="pt-BR" spellcheck="true" placeholder="Cole ou digite aqui o texto que você quer ouvir…"></textarea>
+      </div>
+      <div class="sheet-foot">
+        <span id="stats">—</span>
+        <span>Toque numa frase para ouvir a partir dela<span class="kbd-hint"> · Espaço: ouvir/pausar · ← →: frase anterior/próxima</span></span>
+      </div>
+    </section>
+
+    <aside class="rail" id="settings" aria-label="Ajustes de voz">
+      <h2>Ajustes</h2>
+      <div class="field">
+        <label class="label" for="voiceSelect">Voz</label>
+        <select id="voiceSelect"><option>Carregando vozes…</option></select>
+        <p class="note" id="voiceNote"></p>
+        <div class="field" id="cloudLangField" hidden>
+          <label class="label" for="cloudLang">Idioma do texto</label>
+          <select id="cloudLang">
+            <option value="pt-BR">Português (Brasil)</option>
+            <option value="">Detectar sozinho</option>
+          </select>
+        </div>
+        <button type="button" class="btn-line" id="testVoice">Ouvir amostra da voz</button>
+      </div>
+      <!--<neural>-->
+      <section class="neural" id="neuralCard" aria-labelledby="neuralTitle" hidden>
+        <div class="neural-head">
+          <h3 id="neuralTitle">Voz neural no aparelho</h3>
+          <span class="pill" id="neuralPill">Não baixada</span>
+        </div>
+        <p class="note" id="neuralNote">Roda no próprio celular, de graça e sem limite. Baixa uma vez e depois funciona até sem internet. Prefira o Wi-Fi para o primeiro download.</p>
+        <div class="meter" id="neuralMeter" hidden><span id="neuralMeterFill"></span></div>
+        <button type="button" class="btn-line" id="neuralDownload">Baixar voz neural (92 MB)</button>
+        <div class="field">
+          <label class="label" for="neuralQuality">Qualidade</label>
+          <select id="neuralQuality">
+            <option value="q8">Leve · 92 MB</option>
+            <option value="fp32">Máxima · 325 MB, usa mais memória</option>
+          </select>
+        </div>
+        <div class="export" id="exportBox">
+          <button type="button" class="btn-line" id="exportBtn">Gerar áudio do texto todo</button>
+          <div class="meter" id="exportMeter" hidden><span id="exportMeterFill"></span></div>
+          <p class="note" id="exportNote">Gera tudo antes e vira um arquivo de áudio: dá para ouvir com a tela bloqueada e salvar no iPhone.</p>
+          <div class="export-actions" id="exportActions" hidden>
+            <button type="button" class="btn-line" id="exportPlay">Ouvir o áudio completo</button>
+            <button type="button" class="btn-line" id="exportSave">Salvar áudio</button>
+          </div>
+        </div>
+      </section>
+      <!--</neural>-->
+      <div class="field">
+        <div class="field-head"><label class="label" for="rate">Velocidade</label><output id="rateOut" for="rate">1×</output></div>
+        <input type="range" id="rate" min="0.5" max="2" step="0.05" value="1">
+        <div class="ticks" id="rateTicks" aria-hidden="true"><span>0,5×</span><span>1,25×</span><span>2×</span></div>
+      </div>
+      <div class="field">
+        <div class="field-head"><label class="label" for="pitch">Tom</label><output id="pitchOut" for="pitch">normal</output></div>
+        <input type="range" id="pitch" min="0.7" max="1.3" step="0.05" value="1">
+        <div class="ticks" aria-hidden="true"><span>mais grave</span><span>normal</span><span>mais agudo</span></div>
+      </div>
+      <div class="field">
+        <label class="label" for="pauseSelect">Pausa entre parágrafos</label>
+        <select id="pauseSelect">
+          <option value="0">Nenhuma</option>
+          <option value="350">Curta</option>
+          <option value="700" selected>Média</option>
+          <option value="1200">Longa</option>
+        </select>
+        <p class="note" id="deviceOnly" hidden>Tom e pausa entre parágrafos valem só para as vozes do aparelho.</p>
+      </div>
+      <div class="field">
+        <label class="switch" for="normalize"><input type="checkbox" id="normalize" checked><span>Adaptar o texto para a fala</span></label>
+        <p class="note">Lê “Sr.” como senhor, “R$ 12,50” como 12 reais e 50 centavos, “14h30” como 14 horas e 30 e “vc” como você. Emojis e links são pulados.</p>
+      </div>
+      <details class="help" id="help">
+        <summary>Como ter uma voz mais natural</summary>
+        <p class="note">A voz vem do seu aparelho. O app escolhe sozinho a melhor voz em português do Brasil que encontrar.</p>
+        <ul>
+                    <!--<neural>--><li><strong>Voz neural:</strong> escolha Dora, Alex ou Santa no topo da lista de vozes. É a mais natural, roda no próprio celular e funciona até sem internet depois de baixada.</li><!--</neural>-->
+          <li><strong>Windows ou Mac:</strong> abra esta página no Microsoft Edge e escolha Francisca ou Antonio (natural). São as vozes mais naturais, e são gratuitas.</li>
+          <li><strong>iPhone e iPad:</strong> no modo silencioso a leitura pode ficar muda, então desligue o silencioso. Para uma voz melhor: Ajustes › Acessibilidade › Conteúdo Falado › Vozes › Português (Brasil). Baixe a Luciana na versão Aprimorada ou Premium e recarregue a página.</li>
+          <li><strong>Mac:</strong> Ajustes do Sistema › Acessibilidade › Conteúdo Falado › Voz do Sistema › Gerenciar Vozes. Baixe a Luciana (Premium).</li>
+          <li><strong>Android:</strong> use o Chrome. Nas Configurações, procure “texto em voz”, escolha o mecanismo do Google e instale os dados de voz em Português (Brasil). Na lista de vozes do app, prefira as marcadas como “online”.</li>
+        </ul>
+      </details>
+    </aside>
+  </main>
+</div>
+
+<div class="transport" id="transport" role="region" aria-label="Controles de leitura">
+  <div class="transport-inner">
+    <div class="controls">
+      <button type="button" class="tbtn" id="prevBtn" aria-label="Frase anterior" title="Frase anterior">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5.5" width="2.2" height="13" rx="1.1" fill="currentColor"/><path d="M17.5 6.6v10.8a1 1 0 0 1-1.53.85L8.1 13.27a1.5 1.5 0 0 1 0-2.54l7.87-4.98a1 1 0 0 1 1.53.85z" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="play" id="playBtn">
+        <svg id="icoPlay" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z" fill="currentColor"/></svg>
+        <svg id="icoPause" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>
+        <span id="playLabel">Ouvir</span>
+      </button>
+      <button type="button" class="tbtn" id="nextBtn" aria-label="Próxima frase" title="Próxima frase">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="16.8" y="5.5" width="2.2" height="13" rx="1.1" fill="currentColor"/><path d="M6.5 6.6v10.8a1 1 0 0 0 1.53.85l7.87-4.98a1.5 1.5 0 0 0 0-2.54L8.03 5.75A1 1 0 0 0 6.5 6.6z" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="tbtn" id="stopBtn" aria-label="Parar e voltar ao início" title="Parar e voltar ao início">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="speed" id="speedBtn" title="Mudar velocidade">1×</button>
+    </div>
+    <div class="progress">
+      <input type="range" id="seek" min="0" max="0" step="1" value="0" aria-label="Posição na leitura">
+      <div class="progress-meta"><span id="posText">—</span><span id="timeText"></span></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastAction" hidden></button></div>
+<!--<neural>--><audio id="player" preload="auto" playsinline hidden></audio><!--</neural>-->
+
+<script>
+(() => {
+  'use strict';
+  document.documentElement.lang = 'pt-BR';
+
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    voiceChip: $('voiceChip'), voiceChipText: $('voiceChipText'), notice: $('notice'),
+    sheet: $('sheet'), tabRead: $('tabRead'), tabEdit: $('tabEdit'),
+    readView: $('readView'), editView: $('editView'), textInput: $('textInput'),
+    openBtn: $('openBtn'), fileInput: $('fileInput'), clearBtn: $('clearBtn'),
+    sampleBadge: $('sampleBadge'), stats: $('stats'),
+    settings: $('settings'), voiceSelect: $('voiceSelect'), voiceNote: $('voiceNote'), testVoice: $('testVoice'),
+    cloudLangField: $('cloudLangField'), cloudLang: $('cloudLang'), deviceOnly: $('deviceOnly'), rateTicks: $('rateTicks'),
+    neuralCard: $('neuralCard'), neuralPill: $('neuralPill'), neuralNote: $('neuralNote'), neuralMeter: $('neuralMeter'),
+    neuralMeterFill: $('neuralMeterFill'), neuralDownload: $('neuralDownload'), neuralQuality: $('neuralQuality'),
+    exportBtn: $('exportBtn'), exportMeter: $('exportMeter'), exportMeterFill: $('exportMeterFill'), exportNote: $('exportNote'),
+    exportActions: $('exportActions'), exportPlay: $('exportPlay'), exportSave: $('exportSave'), player: $('player'),
+    rate: $('rate'), rateOut: $('rateOut'), pitch: $('pitch'), pitchOut: $('pitchOut'),
+    pauseSelect: $('pauseSelect'), normalize: $('normalize'), help: $('help'),
+    transport: $('transport'), prevBtn: $('prevBtn'), playBtn: $('playBtn'), playLabel: $('playLabel'),
+    icoPlay: $('icoPlay'), icoPause: $('icoPause'), nextBtn: $('nextBtn'), stopBtn: $('stopBtn'),
+    speedBtn: $('speedBtn'), seek: $('seek'), posText: $('posText'), timeText: $('timeText'),
+    toast: $('toast'), toastText: $('toastText'), toastAction: $('toastAction'),
+  };
+
+  const synth = ('speechSynthesis' in window && 'SpeechSynthesisUtterance' in window) ? window.speechSynthesis : null;
+  const UA = navigator.userAgent || '';
+  const IS_ANDROID = /android/i.test(UA);
+  const IS_IOS = /iP(hone|ad|od)/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // Visualizador embutido em app (WebView do Android, WKWebView sem Safari no iOS): em geral não tem voz.
+  const IN_APP = (IS_ANDROID && /;\s*wv\)/.test(UA)) || (IS_IOS && !/Safari\//.test(UA));
+  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const WPM = 150;                       // palavras por minuto de uma voz pt-BR em 1×
+  const SPEEDS = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+  const PAUSES = [0, 350, 700, 1200];
+
+  const SAMPLE = [
+    'Olá! Este é o Lê pra Mim, um leitor que transforma qualquer texto em voz, em português do Brasil.',
+    '',
+    'Cole aqui uma notícia, um capítulo de livro ou aquele e-mail comprido. A leitura vai frase por frase, e a frase atual fica marcada como num marca-texto. Toque em qualquer frase para ouvir a partir dela.',
+    '',
+    'O texto também é adaptado para a fala. O Sr. Almeida e a Dra. Helena chegaram às 14h30, pagaram R$ 12,50 no estacionamento e caminharam 2 km até o auditório. Vc pode testar com as suas mensagens tbm.',
+    '',
+    'Para usar o seu texto, toque em Editar texto, apague este exemplo e cole o que quiser ouvir. A voz e a velocidade ficam nos ajustes.',
+  ].join('\n');
+
+  const store = {
+    get(key, fallback) {
+      try { const v = localStorage.getItem('lpm:' + key); return v === null ? fallback : JSON.parse(v); }
+      catch (e) { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem('lpm:' + key, JSON.stringify(value)); } catch (e) { /* sem armazenamento */ }
+    },
+  };
+
+  const state = {
+    text: '', hash: '', sentences: [], cum: [], index: 0, shown: -1,
+    view: 'read', playing: false, token: 0, errors: 0,
+    voices: [], voiceSig: '', voice: null, voicesShown: false,
+    rate: 1, pitch: 1, paraPause: 700, normalize: true,
+    utterance: null, timer: 0, watch: 0, restartT: 0, saveT: 0, toastT: 0, toastAction: null,
+    keepAlive: 0, wakeLock: null, lastCancel: -1e9, userScrollAt: 0,
+    startT: 0, everStarted: false, useDefaultVoice: false, iosHintShown: false,
+    engine: 'device', cloud: null, cloudVoices: [], cloudVoice: '', cloudLang: 'pt-BR', cloudState: 'idle',
+    cloudReading: 0, cloudSeq: 0, cloudLines: new Map(), cloudQueued: 0, cloudNext: 0, cloudAllQueued: false,
+    cloudStarted: 0, cloudCur: null, cloudLastMs: 0, cloudPerMs: 0, cloudTest: false, cloudResume: null,
+  };
+
+  /* ---------- formatação ---------- */
+  const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+  const fmtNum = (n, min = 0, max = 2) => n.toLocaleString('pt-BR', { minimumFractionDigits: min, maximumFractionDigits: max });
+  const fmtRate = (r) => fmtNum(r, 0, 2) + '×';
+  function fmtDuration(minutes) {
+    if (!(minutes >= 1)) return 'menos de 1 min';
+    const m = Math.round(minutes);
+    if (m < 60) return `≈ ${m} min`;
+    return `≈ ${Math.floor(m / 60)} h ${m % 60} min`;
+  }
+  function hashText(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36) + ':' + str.length;
+  }
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+
+  /* ---------- texto → parágrafos → frases ---------- */
+  const TITLES = new Set(['sr', 'sra', 'srs', 'sras', 'srta', 'dr', 'dra', 'drs', 'dras', 'prof', 'profa', 'profs',
+    'sto', 'sta', 'av', 'exmo', 'exma', 'ilmo', 'ilma', 'eng', 'enga', 'arq', 'gen', 'cel', 'sgt', 'ten', 'maj',
+    'cap', 'pe', 'fr', 'mr', 'mrs', 'ms', 'st']);
+  const ABBREV = new Set(['etc', 'ex', 'obs', 'pág', 'pag', 'págs', 'p', 'pp', 'n', 'nº', 'núm', 'num', 'vol', 'vols',
+    'fig', 'tel', 'aprox', 'cf', 'ed', 'art', 'arts', 'inc', 'ltda', 'cia', 'depto', 'dept', 'jan', 'fev', 'mar',
+    'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez', 'seg', 'qua', 'qui', 'sex', 'sáb', 'dom', 'min',
+    'máx', 'mín', 'séc', 'vs', 'hab', 'fl', 'fls', 'id', 'ibid', 'op', 'cit', 'jr', 'a.c', 'd.c', 'p.ex']);
+
+  function cleanInput(raw) {
+    return String(raw || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/ /g, ' ')
+      .replace(/[​‌⁠﻿]/g, '');
+  }
+
+  // Junta linhas quebradas no meio da frase (texto copiado de PDF) e separa parágrafos.
+  function toParagraphs(text) {
+    const paras = [];
+    for (const block of text.split(/\n[ \t]*\n+/)) {
+      let cur = null;
+      for (const raw of block.split('\n')) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (cur === null) { cur = line; continue; }
+        const open = !/[.!?…:;"”»)\]]$/.test(cur);
+        if (open && /^\p{Ll}/u.test(line)) {
+          cur = /\p{L}-$/u.test(cur) ? cur.slice(0, -1) + line : cur + ' ' + line;
+        } else {
+          paras.push(cur);
+          cur = line;
+        }
+      }
+      if (cur) paras.push(cur);
+    }
+    return paras;
+  }
+
+  function shouldBreak(para, start, punctIdx, punct, next, nextWord) {
+    if (/\p{Ll}/u.test(next)) return false;           // continua em minúscula: não é fim de frase
+    if (punct !== '.') return true;                     // ! ? … ...
+    const before = para.slice(start, punctIdx);
+    const wm = before.match(/([\p{L}\p{N}ºª.]+)$/u);
+    const word = wm ? wm[1] : '';
+    if (!word) return true;
+    const lw = word.toLowerCase();
+    if (TITLES.has(lw)) return false;                    // Sr. Almeida
+    if (/^\p{Lu}$/u.test(word)) return false;            // iniciais: J. R. Tolkien
+    if (/^(\p{L}\.)+\p{L}$/u.test(word) && !ABBREV.has(lw)) return false;
+    if (/^\d{1,3}$/.test(word) && before.trim() === word) return false; // item de lista: "3. Comprar pão"
+    if (ABBREV.has(lw)) return /\p{Lu}/u.test(next) && !/^[IVXLCDM]+\b/.test(nextWord); // séc. XVIII
+    return true;
+  }
+
+  const MAX_CHUNK = 220;
+  const TARGET_CHUNK = 180;
+  function splitWords(s) {
+    const out = [];
+    let cur = '';
+    for (const w of s.split(/\s+/)) {
+      if (cur && (cur + ' ' + w).length > TARGET_CHUNK) { out.push(cur); cur = w; }
+      else cur = cur ? cur + ' ' + w : w;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  // Frases muito longas viram pedaços menores (alguns navegadores cortam falas longas).
+  function splitLong(s) {
+    if (s.length <= MAX_CHUNK) return [s];
+    const chunks = [];
+    let cur = '';
+    for (const p of s.split(/(?<=[,;:—–])\s+/)) {
+      if (!cur) cur = p;
+      else if ((cur + ' ' + p).length <= TARGET_CHUNK) cur += ' ' + p;
+      else { chunks.push(cur); cur = p; }
+    }
+    if (cur) chunks.push(cur);
+    return chunks.flatMap((c) => (c.length <= MAX_CHUNK ? [c] : splitWords(c)));
+  }
+
+  function splitSentences(para) {
+    const out = [];
+    const re = /([.!?…]+)(["'”’»)\]]*)(\s+)(?=\S)/g;
+    let start = 0;
+    let m;
+    while ((m = re.exec(para))) {
+      const after = m.index + m[0].length;
+      const nextWord = (para.slice(after).match(/^\S+/) || [''])[0];
+      if (shouldBreak(para, start, m.index, m[1], para[after], nextWord)) {
+        const piece = para.slice(start, m.index + m[1].length + m[2].length).trim();
+        if (piece) out.push(piece);
+        start = m.index + m[0].length;
+      }
+    }
+    const rest = para.slice(start).trim();
+    if (rest) out.push(rest);
+    return out.flatMap(splitLong);
+  }
+
+  const countWords = (s) => { const m = String(s).match(/[\p{L}\p{N}]+/gu); return m ? m.length : 0; };
+
+  /* ---------- adaptação para a fala ---------- */
+  const CURRENCY = { 'R$': ['real', 'reais'], 'US$': ['dólar', 'dólares'], 'U$': ['dólar', 'dólares'], '€': ['euro', 'euros'], '£': ['libra', 'libras'] };
+  const RE_MONEY = /(R\$|US\$|U\$|€|£)\s?(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?(?:\s?(milhões|milhão|mil|mi|bilhões|bilhão|bi|trilhões|trilhão|tri)(?![\p{L}\p{N}]))?/gu;
+  const centavos = (c) => `${c} ${c === 1 ? 'centavo' : 'centavos'}`;
+  function moneyPhrase(cur, int, dec, mult) {
+    const [one, many] = CURRENCY[cur];
+    const decTxt = dec ? ',' + dec : '';
+    if (mult) {
+      const m = mult.toLowerCase();
+      if (m === 'mil') return `${int}${decTxt} mil ${many}`;
+      const single = int === '1';      // 1 milhão, 1,5 milhão
+      const word = m.startsWith('mi') ? (single ? 'milhão' : 'milhões')
+        : m.startsWith('bi') ? (single ? 'bilhão' : 'bilhões')
+        : (single ? 'trilhão' : 'trilhões');
+      return `${int}${decTxt} ${word} de ${many}`;
+    }
+    const n = int.replace(/\./g, '');
+    const c = dec ? parseInt(dec.length === 1 ? dec + '0' : dec, 10) : 0;
+    if (/^0+$/.test(n)) return c ? centavos(c) : `zero ${many}`;
+    const de = n.length >= 7 && /000000$/.test(n) ? 'de ' : '';
+    let out = `${int} ${de}${n === '1' ? one : many}`;
+    if (c) out += ` e ${centavos(c)}`;
+    return out;
+  }
+
+  const HOUR_WORDS = { 1: 'uma', 2: 'duas', 21: 'vinte e uma', 22: 'vinte e duas' };
+  function hoursPhrase(h) {
+    const n = parseInt(h, 10);
+    return `${HOUR_WORDS[n] || n} ${n === 1 || n === 0 ? 'hora' : 'horas'}`;
+  }
+  function clockPhrase(h, mm) {
+    const m = parseInt(mm, 10);
+    return m ? `${hoursPhrase(h)} e ${m}` : hoursPhrase(h);
+  }
+  const RE_HHMM = /(?<![\p{L}\p{N}])([01]?\d|2[0-3])\s?h\s?([0-5]\d)(?:\s?min)?(?![\p{L}\p{N}])/gu;
+  const RE_COLON = /((?:^|[\s(])(?:às|as|das|até|pelas|entre|e|à|após|de)\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s?(?:hs|h|horas)(?![\p{L}]))?/giu;
+  const RE_HH = /(?<![\p{L}\p{N}.,])(\d{1,3})\s?hs?(?![\p{L}\p{N}])/gu;
+
+  const UNITS = [
+    ['km/h', 'quilômetro por hora', 'quilômetros por hora'],
+    ['km²', 'quilômetro quadrado', 'quilômetros quadrados'],
+    ['m²', 'metro quadrado', 'metros quadrados'],
+    ['m³', 'metro cúbico', 'metros cúbicos'],
+    ['km', 'quilômetro', 'quilômetros'],
+    ['kg', 'quilo', 'quilos'],
+    ['mg', 'miligrama', 'miligramas'],
+    ['ml', 'mililitro', 'mililitros'],
+    ['mL', 'mililitro', 'mililitros'],
+    ['cm', 'centímetro', 'centímetros'],
+    ['mm', 'milímetro', 'milímetros'],
+    ['min', 'minuto', 'minutos'],
+    ['°C', 'grau Celsius', 'graus Celsius'],
+    ['ºC', 'grau Celsius', 'graus Celsius'],
+    ['GB', 'gigabyte', 'gigabytes'],
+    ['MB', 'megabyte', 'megabytes'],
+    ['TB', 'terabyte', 'terabytes'],
+    ['g', 'grama', 'gramas'],
+    ['m', 'metro', 'metros'],
+    ['L', 'litro', 'litros'],
+  ];
+  const UNIT_MAP = new Map(UNITS.map(([k, one, many]) => [k, [one, many]]));
+  const RE_UNIT = new RegExp(`(?<![\\p{L}\\p{N}.,])(\\d+(?:[.,]\\d+)*)\\s?(${UNITS.map((u) => esc(u[0])).join('|')})(?![\\p{L}\\p{N}²³/])`, 'gu');
+
+  const ABBR_LIST = [
+    ['V. Exa.', 'Vossa Excelência'],
+    ['Srta.', 'senhorita'], ['Sras.', 'senhoras'], ['Srs.', 'senhores'], ['Sra.', 'senhora'], ['Sr.', 'senhor'],
+    ['Dras.', 'doutoras'], ['Drs.', 'doutores'], ['Dra.', 'doutora'], ['Dr.', 'doutor'],
+    ['Profa.', 'professora'], ['Profª', 'professora'], ['Profs.', 'professores'], ['Prof.', 'professor'],
+    ['Enga.', 'engenheira'], ['Eng.', 'engenheiro'],
+    ['Exmo.', 'excelentíssimo'], ['Exma.', 'excelentíssima'], ['Ilmo.', 'ilustríssimo'], ['Ilma.', 'ilustríssima'],
+    ['Av.', 'avenida'], ['Sto.', 'santo'], ['Sta.', 'santa'],
+    ['p.ex.', 'por exemplo'], ['ex.:', 'por exemplo:'], ['etc.', 'etcétera'],
+    ['págs.', 'páginas'], ['pág.', 'página'], ['cap.', 'capítulo'], ['vol.', 'volume'], ['tel.', 'telefone'],
+    ['obs.:', 'observação:'], ['obs.', 'observação'], ['aprox.', 'aproximadamente'], ['vs.', 'versus'],
+    ['séc.', 'século'], ['Ltda.', 'limitada'], ['Cia.', 'companhia'],
+    ['a.C.', 'antes de Cristo', true], ['d.C.', 'depois de Cristo', true],
+    ['n.º', 'número'], ['nº', 'número'], ['n°', 'número'], ['núm.', 'número'],
+    ['c/', 'com'], ['s/', 'sem'], ['p/', 'para'],
+  ];
+  const ABBR_RULES = ABBR_LIST.map(([k, v, caseSensitive]) => {
+    const dotted = /[.:]$/.test(k);
+    const body = esc(k).replace(/ /g, '\\s?');
+    const re = new RegExp('(?<![\\p{L}\\p{N}])' + body + (dotted ? '' : '(?=\\s*[\\p{L}\\p{N}])'), caseSensitive ? 'gu' : 'giu');
+    return [re, dotted ? v : v + ' '];
+  });
+
+  const SLANG = {
+    vc: 'você', vcs: 'vocês', tb: 'também', tbm: 'também', tmb: 'também', pq: 'porque', q: 'que', hj: 'hoje',
+    msg: 'mensagem', msgs: 'mensagens', obg: 'obrigado', obgd: 'obrigado', obgda: 'obrigada', blz: 'beleza',
+    td: 'tudo', tds: 'todos', mt: 'muito', mto: 'muito', mta: 'muita', mts: 'muitos', qdo: 'quando', qnd: 'quando',
+    cmg: 'comigo', ctz: 'certeza', pfv: 'por favor', pfvr: 'por favor', vdd: 'verdade', sdds: 'saudades',
+    bjs: 'beijos', bj: 'beijo', dps: 'depois', ngm: 'ninguém', nd: 'nada', fds: 'fim de semana', vlw: 'valeu',
+    flw: 'falou', kd: 'cadê', tlgd: 'tá ligado',
+  };
+  const cap1 = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+  const RE_SLANG = new RegExp(`(?<![\\p{L}\\p{N}@#/])(${Object.keys(SLANG).flatMap((k) => [k, cap1(k)]).join('|')})(?![\\p{L}\\p{N}@/])`, 'gu');
+
+  const RE_URL = /\b(?:https?:\/\/|www\.)\S+/gi;
+  const RE_EMOJI = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}\u{20E3}]/gu;
+  const RE_END = /[.!?…]["'”’»)\]]*$/;
+
+  function normalizeForSpeech(input) {
+    let s = String(input);
+    const endsWithStop = RE_END.test(s.trim());
+    s = s.replace(RE_URL, 'link');
+    s = s.replace(RE_EMOJI, '');
+    s = s.replace(/^\s{0,3}#{1,6}\s+/, '')
+      .replace(/^\s*>\s*/, '')
+      .replace(/^\s*[-*+•▪◦·—–]\s+/, '')
+      .replace(/^\s*(\d{1,3})[.)]\s+/, '$1, ');
+    s = s.replace(/[*`~]+/g, '').replace(/_+/g, ' ');
+    s = s.replace(RE_MONEY, (m, cur, int, dec, mult) => moneyPhrase(cur, int, dec, mult));
+    s = s.replace(RE_HHMM, (m, h, mm) => clockPhrase(h, mm));
+    s = s.replace(RE_COLON, (m, pre, h, mm) => pre + clockPhrase(h, mm));
+    s = s.replace(RE_HH, (m, h) => hoursPhrase(h));
+    s = s.replace(RE_UNIT, (m, num, unit) => {
+      const [one, many] = UNIT_MAP.get(unit);
+      return `${num} ${num === '1' ? one : many}`;
+    });
+    for (const [re, v] of ABBR_RULES) s = s.replace(re, v);
+    s = s.replace(RE_SLANG, (m) => {
+      const v = SLANG[m.toLowerCase()];
+      return m[0] !== m[0].toLowerCase() ? cap1(v) : v;
+    });
+    s = s.replace(/(?<![\p{L}])(?:k{3,}|K{4,})(?![\p{L}])/gu, 'risos')
+      .replace(/(?<![\p{L}])(?:rs)+(?![\p{L}])/gu, 'risos');
+    s = s.replace(/(?<![\p{L}])e\/ou(?![\p{L}])/giu, 'e ou');
+    s = s.replace(/\s+&\s+/g, ' e ');
+    s = s.replace(/(?<![\p{L}\p{N}])#(?=[\p{L}\p{N}])/gu, '');
+    s = s.replace(/\s*(?:->|=>|→|⇒|➜|\|)\s*/g, ', ');
+    // PALAVRAS EM CAIXA ALTA soam soletradas em algumas vozes; siglas curtas (CPF, INSS) ficam.
+    s = s.replace(/(?<![\p{L}])(\p{Lu}{5,})(?![\p{L}])/gu, (w) => (/^[IVXLCDM]+$/.test(w) ? w : w.toLowerCase()));
+    s = s.replace(/\s+([,.;:!?])/g, '$1').replace(/([,;:])\1+/g, '$1').replace(/\s{2,}/g, ' ').trim();
+    s = s.replace(/^[,;:]\s*/, '');
+    if (endsWithStop && s && !RE_END.test(s)) s += '.';
+    return s;
+  }
+
+  function parse(text) {
+    const list = [];
+    toParagraphs(cleanInput(text)).forEach((p, pi) => {
+      for (const t of splitSentences(p)) list.push({ text: t, para: pi, words: countWords(t), speak: '', el: null });
+    });
+    return list;
+  }
+  function computeSpeech() {
+    for (const s of state.sentences) s.speak = state.normalize ? normalizeForSpeech(s.text) : s.text;
+  }
+  function computeCum() {
+    const S = state.sentences;
+    const cum = new Array(S.length + 1);
+    cum[S.length] = 0;
+    for (let k = S.length - 1; k >= 0; k--) cum[k] = cum[k + 1] + S[k].words;
+    state.cum = cum;
+  }
+
+  /* ---------- vozes ---------- */
+  const langOf = (v) => String(v.lang || '').replace('_', '-').toLowerCase();
+  const isBR = (v) => langOf(v) === 'pt-br';
+  const isPT = (v) => /^pt(-|$)/.test(langOf(v));
+  const NOVELTY = /eloquence|espeak|compact|grandma|grandpa|vovó|vovô|rocko|shelley|\bflo\b|reed|sandy|eddy|superstar|bells|bubbles|jester|organ|trinoids|whisper|zarvox|bad news|good news|boing|cellos|wobble|albert|\bfred\b|junior|kathy|ralph/i;
+
+  function scoreVoice(v) {
+    const n = v.name.toLowerCase();
+    let s = 0;
+    if (isBR(v)) s += 100;
+    else if (isPT(v)) s += 40;
+    if (/natural|neural|wavenet|studio/.test(n)) s += 60;
+    else if (/premium/.test(n)) s += 55;
+    else if (/enhanced|aprimorad|melhorad/.test(n)) s += 45;
+    else if (/network/.test(n)) s += 35;               // Android: vozes do Google pela internet
+    else if (/google/.test(n)) s += 30;
+    if (NOVELTY.test(n)) s -= 80;
+    if (v.default && isPT(v)) s += 3;
+    return s;
+  }
+  function cleanName(v) {
+    const android = v.name.match(/^[a-z]{2}-[a-z]{2}-x-([a-z0-9]+)[-#].*?(local|network)$/i);
+    if (android) return `Google ${android[1].toUpperCase()}`;
+    return v.name
+      .replace(/^Microsoft\s+/i, '')
+      .replace(/\s*[-–]\s*Portugu[eê]s.*$/i, '')
+      .replace(/\s*\((?:Portuguese|Português)[^)]*\)\s*$/i, '')
+      .replace(/\s*Online\s*\(Natural\)/i, '')
+      .replace(/\s*Multilingual/i, '')
+      .trim() || v.name;
+  }
+  function voiceLabel(v) {
+    const tags = [];
+    if (/natural|neural|wavenet|studio/i.test(v.name)) tags.push('natural');
+    if (!v.localService || /network/i.test(v.name)) tags.push('online');
+    return tags.length ? `${cleanName(v)} · ${tags.join(', ')}` : cleanName(v);
+  }
+  function voiceNote(x) {
+    const v = x.v;
+    const n = v.name.toLowerCase();
+    if (!isPT(v)) return 'Esta voz não é em português e pode soar estranha.';
+    if (/natural|neural|wavenet|studio/.test(n)) return 'Voz neural, a mais natural do aparelho.' + (v.localService ? '' : ' Precisa de internet.');
+    if (/premium|enhanced|aprimorad|melhorad/.test(n)) return 'Voz de alta qualidade instalada no aparelho.';
+    if (/google|network/.test(n)) return 'Voz do Google. Precisa de internet.';
+    return 'Voz básica do aparelho. Veja abaixo como instalar uma voz mais natural.';
+  }
+
+  /* Motor de voz: "cloud" (voz neural servida pela página, quando existe) ou "device" (Web Speech). */
+  const CLOUD_RATE = [0.7, 1.5];
+  const DEVICE_RATE = [0.5, 2];
+  const isCloud = () => state.engine === 'cloud' && !!state.cloud;
+  // Voz neural no aparelho (Kokoro): só existe na versão publicada com o worker e o modelo.
+  const NEURAL = !!el.neuralCard && typeof Worker !== 'undefined' && typeof WebAssembly !== 'undefined';
+  const NEURAL_VOICES = [['pf_dora', 'Dora', 'feminina'], ['pm_alex', 'Alex', 'masculina'], ['pm_santa', 'Santa', 'masculina']];
+  const isNeural = () => NEURAL && state.engine === 'neural';
+  const canSpeak = () => !!synth || !!state.cloud || NEURAL;
+  const rateBounds = () => (isCloud() ? CLOUD_RATE : DEVICE_RATE);
+  const cloudRate = () => clamp(state.rate, CLOUD_RATE[0], CLOUD_RATE[1]);
+  const deviceIndex = () => (state.voice ? state.voices.findIndex((x) => x.v === state.voice) : -1);
+
+  function renderVoiceSelect() {
+    const sel = el.voiceSelect;
+    sel.textContent = '';
+    if (NEURAL) {
+      const og = document.createElement('optgroup');
+      og.label = 'Voz neural no aparelho (a mais natural)';
+      for (const [id, name, kind] of NEURAL_VOICES) {
+        const o = document.createElement('option');
+        o.value = 'k:' + id;
+        o.textContent = `${name} · ${kind}`;
+        og.appendChild(o);
+      }
+      sel.appendChild(og);
+    }
+    if (state.cloud) {
+      const og = document.createElement('optgroup');
+      og.label = CLOUD_TEXT.group;
+      state.cloudVoices.forEach((name, k) => {
+        const o = document.createElement('option');
+        o.value = 'c:' + name;
+        o.textContent = `${CLOUD_TEXT.option} · ${cap1(name)}${k === 0 ? ' (padrão)' : ''}`;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    }
+    const pool = state.voices;
+    const pre = NEURAL ? 'Vozes do sistema · ' : (state.cloud ? 'Do aparelho · ' : '');
+    const groups = [
+      [pre + 'Português (Brasil)', pool.filter((x) => isBR(x.v))],
+      [pre + 'Português de outros países', pool.filter((x) => !isBR(x.v) && isPT(x.v))],
+      [pre + 'Outros idiomas', pool.filter((x) => !isPT(x.v))],
+    ];
+    for (const [label, items] of groups) {
+      if (!items.length) continue;
+      const og = document.createElement('optgroup');
+      og.label = label;
+      for (const x of items) {
+        const o = document.createElement('option');
+        o.value = 'd:' + pool.indexOf(x);
+        o.textContent = voiceLabel(x.v);
+        og.appendChild(o);
+      }
+      sel.appendChild(og);
+    }
+    if (!sel.options.length) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = synth ? 'Voz padrão do aparelho' : 'Nenhuma voz disponível';
+      sel.appendChild(o);
+    }
+    sel.disabled = !canSpeak();
+    const di = deviceIndex();
+    sel.value = isNeural() ? 'k:' + neural.voice : isCloud() ? 'c:' + state.cloudVoice : (di >= 0 ? 'd:' + di : '');
+  }
+
+  function refreshVoiceUI() {
+    const c = isCloud();
+    const n = isNeural();
+    let good = false;
+    if (n) {
+      const v = NEURAL_VOICES.find((x) => x[0] === neural.voice) || NEURAL_VOICES[0];
+      el.voiceChipText.textContent = `Voz: ${v[1]} (neural)`;
+      el.voiceNote.textContent = 'Kokoro, uma voz neural aberta que roda no próprio aparelho.';
+      good = true;
+    } else if (c) {
+      el.voiceChipText.textContent = `Voz: ${CLOUD_TEXT.option} (${cap1(state.cloudVoice)})`;
+      el.voiceNote.textContent = CLOUD_TEXT.note;
+      good = true;
+    } else if (state.voice) {
+      const x = state.voices.find((y) => y.v === state.voice);
+      el.voiceChipText.textContent = 'Voz: ' + cleanName(state.voice);
+      el.voiceNote.textContent = x ? voiceNote(x) : '';
+      good = !!x && x.score >= 130;
+    } else if (synth) {
+      el.voiceChipText.textContent = 'Voz padrão do aparelho';
+      el.voiceNote.textContent = 'O navegador não listou as vozes. A leitura vai pedir a voz padrão em português.';
+    } else {
+      el.voiceChipText.textContent = 'Sem voz neste navegador';
+      el.voiceNote.textContent = '';
+    }
+    el.voiceChip.dataset.q = good ? 'good' : 'basic';
+    el.cloudLangField.hidden = !c;
+    el.deviceOnly.hidden = !(c || n);
+    el.deviceOnly.textContent = c ? 'Tom e pausa entre parágrafos valem só para as vozes do aparelho.' : 'O tom vale só para as vozes do sistema.';
+    el.pitch.disabled = c || n;
+    el.pauseSelect.disabled = c;
+    el.testVoice.disabled = !canSpeak();
+    const [lo, hi] = rateBounds();
+    el.rate.min = String(lo);
+    el.rate.max = String(hi);
+    const ticks = el.rateTicks.children;
+    ticks[0].textContent = fmtRate(lo);
+    ticks[1].textContent = fmtRate((lo + hi) / 2);
+    ticks[2].textContent = fmtRate(hi);
+    setRate(state.rate, false);
+    refreshNeuralUI();
+  }
+
+  function selectVoice(value) {
+    if (value.startsWith('k:') && NEURAL) {
+      state.engine = 'neural';
+      neural.voice = value.slice(2);
+      store.set('voice', 'neural:' + neural.voice);
+      el.help.open = false;
+    } else if (value.startsWith('c:') && state.cloud) {
+      state.engine = 'cloud';
+      state.cloudVoice = value.slice(2);
+      store.set('voice', 'cloud:' + state.cloudVoice);
+      el.help.open = false;
+    } else if (value.startsWith('d:')) {
+      const x = state.voices[Number(value.slice(2))];
+      if (!x) return;
+      state.engine = 'device';
+      state.voice = x.v;
+      state.useDefaultVoice = false;
+      store.set('voice', x.v.voiceURI);
+    } else {
+      return;
+    }
+    refreshVoiceUI();
+    if (state.playing) restartSoon();
+  }
+
+  function populateVoices() {
+    if (!synth) return false;
+    let all = [];
+    try { all = synth.getVoices() || []; } catch (e) { all = []; }
+    if (!all.length) return false;
+    const pt = all.filter(isPT);
+    const pool = (pt.length ? pt : all).map((v) => ({ v, score: scoreVoice(v) }));
+    pool.sort((a, b) => b.score - a.score || a.v.name.localeCompare(b.v.name, 'pt-BR'));
+    const sig = pool.map((x) => x.v.voiceURI + '|' + x.v.name).join(';');
+    if (sig === state.voiceSig) return true;
+    state.voiceSig = sig;
+    state.voices = pool;
+    const wanted = state.voice ? state.voice.voiceURI : store.get('voice', null);
+    state.voice = (pool.find((x) => x.v.voiceURI === wanted) || pool[0]).v;
+    renderVoiceSelect();
+    refreshVoiceUI();
+    if (!pt.length && !state.cloud && !NEURAL) showNotice('Não encontrei nenhuma voz em português neste aparelho, então a leitura vai usar outra voz. Veja em “Como ter uma voz mais natural” como instalar uma.');
+    else if (el.notice.dataset.kind !== 'nosound') hideNotice();
+    return true;
+  }
+
+  function noVoicesNotice(noSynth) {
+    const tip = IN_APP ? `Copie o link e abra direto no ${IS_IOS ? 'Safari' : 'Chrome'}.` : 'Abra a página no Chrome, Edge ou Safari.';
+    if (noSynth) showNotice('Este navegador não tem leitura em voz alta.', [tip], envLabel());
+    else showNotice(IN_APP ? 'Esta página está aberta dentro de um app que não mostrou nenhuma voz.' : 'O navegador não mostrou nenhuma voz.',
+      ['Se a leitura ficar muda: ' + tip.charAt(0).toLowerCase() + tip.slice(1)], envLabel());
+  }
+
+  function initVoices(cloudReady) {
+    if (!synth) {
+      renderVoiceSelect();
+      refreshVoiceUI();
+      cloudReady.then(() => { if (!state.cloud && !NEURAL) noVoicesNotice(true); });
+      return;
+    }
+    const onChange = () => populateVoices();
+    if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', onChange);
+    else synth.onvoiceschanged = onChange;
+    let tries = 0;
+    const poll = () => {
+      if (populateVoices()) return;
+      if (++tries < 24) { setTimeout(poll, 250); return; }
+      renderVoiceSelect();
+      refreshVoiceUI();
+      cloudReady.then(() => { if (!state.cloud && !NEURAL) noVoicesNotice(false); });
+    };
+    poll();
+  }
+
+  // Voz neural oferecida pelo ambiente onde a página está publicada (se houver).
+  const CLOUD_TEXT = {
+      };
+
+  async function initCloudVoice() {
+      }
+
+  /* ---------- tela ---------- */
+  function render() {
+    const rv = el.readView;
+    rv.textContent = '';
+    state.shown = -1;
+    if (!state.sentences.length) {
+      rv.innerHTML = '<div class="empty"><p class="empty-title">Nada para ler ainda.</p>' +
+        '<p>Cole um texto, digite ou abra um arquivo .txt.</p>' +
+        '<button type="button" class="btn-line" data-action="edit">Escrever ou colar texto</button></div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    let p = null;
+    let lastPara = -1;
+    state.sentences.forEach((s, i) => {
+      if (s.para !== lastPara) { p = document.createElement('p'); frag.appendChild(p); lastPara = s.para; }
+      else p.appendChild(document.createTextNode(' '));
+      const span = document.createElement('span');
+      span.className = 's';
+      span.dataset.i = String(i);
+      span.textContent = s.text;
+      s.el = span;
+      p.appendChild(span);
+    });
+    rv.appendChild(frag);
+  }
+
+  function mark(i) {
+    const S = state.sentences;
+    if (!S.length || !S[i]) return;
+    const old = state.shown < 0 ? 0 : state.shown;
+    if (state.shown >= 0 && S[state.shown]) S[state.shown].el.classList.remove('now');
+    for (let k = Math.min(old, i); k <= Math.max(old, i); k++) if (S[k]) S[k].el.classList.toggle('done', k < i);
+    S[i].el.classList.add('now');
+    state.shown = i;
+  }
+
+  function follow(force) {
+    const s = state.sentences[state.index];
+    if (!s || !s.el || state.view !== 'read') return;
+    if (!force && Date.now() - state.userScrollAt < 4000) return;
+    const r = s.el.getBoundingClientRect();
+    const bottom = window.innerHeight - el.transport.offsetHeight - 24;
+    if (r.top < 24 || r.bottom > bottom) s.el.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+
+  function updateStats() {
+    const text = state.view === 'edit' ? el.textInput.value : state.text;
+    const words = countWords(text);
+    el.stats.textContent = words
+      ? `${fmtNum(words)} ${words === 1 ? 'palavra' : 'palavras'} · ${fmtDuration(words / (WPM * state.rate))} de áudio`
+      : 'Nenhum texto';
+  }
+
+  function updateTransport() {
+    const n = state.sentences.length;
+    const i = clamp(state.index, 0, Math.max(0, n - 1));
+    el.seek.max = String(Math.max(0, n - 1));
+    el.seek.value = String(i);
+    el.seek.disabled = n < 2;
+    el.posText.textContent = n ? `Frase ${fmtNum(i + 1)} de ${fmtNum(n)}` : 'Sem texto';
+    if (n) {
+      const dur = fmtDuration(state.cum[i] / (WPM * state.rate));
+      const started = state.playing || state.index > 0;
+      el.timeText.textContent = started ? (dur.startsWith('menos') ? `Falta ${dur}` : `Faltam ${dur}`) : `Total: ${dur}`;
+    } else {
+      el.timeText.textContent = '';
+    }
+    const off = !n || !canSpeak();
+    el.prevBtn.disabled = off;
+    el.nextBtn.disabled = off;
+    el.stopBtn.disabled = off;
+    el.playBtn.disabled = !canSpeak();
+    el.speedBtn.disabled = !canSpeak();
+    if (isNeural() && state.playing && neural.waiting) {
+      el.posText.textContent = neural.status === 'ready' ? `Gerando a frase ${fmtNum(i + 1)}…` : 'Preparando a voz neural…';
+    }
+    el.playLabel.textContent = state.playing ? 'Pausar' : (state.index > 0 ? 'Continuar' : 'Ouvir');
+    el.icoPlay.toggleAttribute('hidden', state.playing);
+    el.icoPause.toggleAttribute('hidden', !state.playing);
+    el.readView.classList.toggle('is-playing', state.playing);
+  }
+
+  function showView(v) {
+    if (v === 'read' && el.textInput.value !== state.text) setText(el.textInput.value);
+    state.view = v;
+    el.readView.hidden = v !== 'read';
+    el.editView.hidden = v !== 'edit';
+    el.tabRead.setAttribute('aria-selected', String(v === 'read'));
+    el.tabEdit.setAttribute('aria-selected', String(v === 'edit'));
+    if (v === 'edit') {
+      if (state.playing) pause();
+      autosize();
+    }
+    updateStats();
+  }
+
+  function autosize() {
+    const ta = el.textInput;
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(ta.scrollHeight + 2, 200) + 'px';
+  }
+
+  function setText(text) {
+    state.text = text;
+    if (el.textInput.value !== text) el.textInput.value = text;
+    state.sentences = parse(text);
+    computeSpeech();
+    computeCum();
+    render();
+    state.hash = hashText(text);
+    const pos = store.get('pos', null);
+    state.index = pos && pos.h === state.hash && pos.i >= 0 && pos.i < state.sentences.length ? pos.i : 0;
+    if (state.sentences.length) mark(state.index);
+    el.sampleBadge.hidden = text !== SAMPLE;
+    store.set('text', text === SAMPLE ? null : text);
+    updateStats();
+    updateTransport();
+    if (NEURAL) refreshExportUI();
+  }
+
+  function showNotice(title, lines, detail) {
+    const n = el.notice;
+    n.textContent = '';
+    n.dataset.kind = '';
+    const head = document.createElement('p');
+    head.className = 'notice-title';
+    head.textContent = title;
+    n.appendChild(head);
+    if (lines && lines.length) {
+      const ul = document.createElement('ul');
+      for (const line of lines) { const li = document.createElement('li'); li.textContent = line; ul.appendChild(li); }
+      n.appendChild(ul);
+    }
+    if (detail) {
+      const p = document.createElement('p');
+      p.className = 'notice-detail';
+      p.textContent = detail;
+      n.appendChild(p);
+    }
+    n.hidden = false;
+  }
+  function hideNotice() { el.notice.hidden = true; }
+
+  function showToast(msg, actionLabel, action) {
+    el.toastText.textContent = msg;
+    state.toastAction = actionLabel ? action : null;
+    el.toastAction.textContent = actionLabel || '';
+    el.toastAction.hidden = !actionLabel;
+    el.toast.classList.add('show');
+    clearTimeout(state.toastT);
+    state.toastT = setTimeout(() => el.toast.classList.remove('show'), actionLabel ? 7000 : 3500);
+  }
+
+  /* ---------- leitura ---------- */
+  function makeUtterance(text) {
+    const u = new SpeechSynthesisUtterance(text);
+    if (state.voice && !state.useDefaultVoice) {
+      u.voice = state.voice;
+      u.lang = String(state.voice.lang || 'pt-BR').replace('_', '-');
+    } else {
+      u.lang = 'pt-BR';
+    }
+    u.rate = state.rate;
+    u.pitch = state.pitch;
+    u.volume = 1;
+    return u;
+  }
+
+  function hush() {
+    if (!synth) return;
+    try { synth.cancel(); } catch (e) { /* ignora */ }
+    state.lastCancel = performance.now();
+  }
+
+  // Com algo tocando: cancela e espera um pouco (Safari e Chrome perdem um speak() logo após cancel()).
+  // Sem nada tocando: fala na hora, sem cancel(), dentro do toque (o iPhone só libera a voz assim).
+  function speakNow(fn) {
+    const busy = synth.speaking || synth.pending;
+    const recent = performance.now() - state.lastCancel < 200;
+    if (busy) hush();
+    if (busy || recent) state.timer = setTimeout(fn, 200);
+    else fn();
+  }
+
+  // iOS 17+: pede sessão de áudio de reprodução, que não fica muda no modo silencioso.
+  function preferPlayback() {
+    try {
+      if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback';
+    } catch (e) { /* não suportado */ }
+  }
+
+  function clearTimers() {
+    clearTimeout(state.timer);
+    clearTimeout(state.watch);
+    clearTimeout(state.restartT);
+    clearTimeout(state.startT);
+  }
+
+  function envLabel() {
+    const where = IS_IOS ? 'iPhone/iPad' : IS_ANDROID ? 'Android' : 'computador';
+    const how = IN_APP ? 'dentro de um app' : 'navegador';
+    let total = 0;
+    let pt = 0;
+    try { const v = synth ? synth.getVoices() : []; total = v.length; pt = v.filter(isPT).length; } catch (e) { /* ignora */ }
+    return `Detalhes: ${where}, ${how}, ${total} ${total === 1 ? 'voz' : 'vozes'} (${pt} em português)` +
+      (state.useDefaultVoice ? ', voz padrão.' : '.');
+  }
+
+  function markStarted() {
+    clearTimeout(state.startT);
+    if (state.everStarted) return;
+    state.everStarted = true;
+    if (el.notice.dataset.kind === 'nosound') hideNotice();
+    if (IS_IOS && !state.iosHintShown) {
+      state.iosHintShown = true;
+      showToast('Sem som? Tire o iPhone do modo silencioso e aumente o volume.');
+    }
+  }
+
+  // Se a voz não começar a falar, para e explica o que fazer em vez de avançar mudo.
+  function armStartCheck(tok) {
+    clearTimeout(state.startT);
+    if (state.everStarted) return;
+    let rounds = 0;
+    const check = () => {
+      if (tok !== state.token || state.everStarted) return;
+      if (synth.speaking && ++rounds < 2) { state.startT = setTimeout(check, 4500); return; }
+      noSound();
+    };
+    state.startT = setTimeout(check, 4500);
+  }
+
+  function noSound() {
+    const triedDefault = state.useDefaultVoice;
+    pause();
+    state.useDefaultVoice = true;
+    const tips = [];
+    if (IN_APP) tips.push(`A página parece estar aberta dentro de um app, e esses visualizadores costumam não ter voz. Copie o link e abra direto no ${IS_IOS ? 'Safari' : 'Chrome'}.`);
+    if (IS_IOS) tips.push('Confira em Ajustes › Acessibilidade › Conteúdo Falado › Vozes › Português (Brasil) se há uma voz baixada.');
+    if (IS_ANDROID) tips.push('Nas Configurações, procure “texto em voz”, escolha o mecanismo do Google e baixe os dados de voz em Português (Brasil).');
+    if (!IS_IOS && !IS_ANDROID) tips.push('Abra a página no Chrome, Edge ou Safari e confira o volume do computador.');
+    showNotice(
+      triedDefault ? 'A voz não começou a falar, nem com a voz padrão do aparelho.'
+        : 'A voz não começou a falar. Toque em Ouvir de novo para tentar com a voz padrão do aparelho.',
+      tips, envLabel());
+    el.notice.dataset.kind = 'nosound';
+    el.notice.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    showToast('Não saiu som. Veja o aviso no topo da página.');
+  }
+
+  function savePos() { store.set('pos', { h: state.hash, i: state.index }); }
+
+  function speakAt(tok) {
+    if (tok !== state.token) return;
+    const S = state.sentences;
+    if (state.index >= S.length) { finish(); return; }
+    const s = S[state.index];
+    mark(state.index);
+    follow(false);
+    updateTransport();
+    savePos();
+    if (!/[\p{L}\p{N}]/u.test(s.speak)) { advance(tok, s); return; }
+
+    const u = makeUtterance(s.speak);
+    const t0 = performance.now();
+    let done = false;
+    u.onstart = () => { state.errors = 0; markStarted(); };
+    u.onend = () => {
+      if (done) return;
+      done = true;
+      if (performance.now() - t0 > 600) markStarted();
+      advance(tok, s);
+    };
+    u.onerror = (e) => {
+      if (done) return;
+      done = true;
+      if (tok !== state.token) return;
+      const code = e && e.error;
+      if (code === 'interrupted' || code === 'canceled') return;
+      if (code === 'not-allowed') {
+        pause();
+        showToast('O navegador bloqueou o áudio. Toque em Continuar.');
+        return;
+      }
+      if (state.voice && !state.useDefaultVoice) {
+        state.useDefaultVoice = true;
+        showToast('A voz escolhida falhou. Usando a voz padrão do aparelho.');
+        clearTimeout(state.watch);
+        speakAt(tok);
+        return;
+      }
+      if (++state.errors > 3) {
+        pause();
+        showToast('A voz parou de responder. Escolha outra voz nos ajustes.');
+        return;
+      }
+      advance(tok, s);
+    };
+    state.utterance = u;               // mantém a referência viva (o Chrome perde o onend sem isso)
+    synth.speak(u);
+
+    // Rede de segurança: alguns navegadores não disparam onend. Só avança se a voz já falou alguma vez.
+    const est = (s.speak.length / (14 * state.rate)) * 1000;
+    const check = () => {
+      if (done || tok !== state.token) return;
+      if (synth.speaking || !state.everStarted) { state.watch = setTimeout(check, 1500); return; }
+      done = true;
+      advance(tok, s);
+    };
+    state.watch = setTimeout(check, est * 1.6 + 3000);
+  }
+
+  function advance(tok, s) {
+    if (tok !== state.token) return;
+    clearTimeout(state.watch);
+    const nextI = state.index + 1;
+    const next = state.sentences[nextI];
+    state.index = nextI;
+    const gap = next && next.para !== s.para ? state.paraPause / Math.max(0.5, state.rate) : 0;
+    if (gap) state.timer = setTimeout(() => speakAt(tok), gap);
+    else speakAt(tok);
+  }
+
+  /* ---------- voz neural (motor "cloud") ---------- */
+  // Fala um parágrafo por linha (até 1.500 caracteres), entregando poucas linhas por vez.
+  function buildLines(from, maxLines) {
+    const S = state.sentences;
+    const lines = [];
+    let i = from;
+    while (i < S.length && lines.length < maxLines) {
+      const para = S[i].para;
+      let text = '';
+      const offs = [];
+      while (i < S.length && S[i].para === para) {
+        const sp = S[i].speak;
+        if (/[\p{L}\p{N}]/u.test(sp)) {
+          if (text && text.length + 1 + sp.length > 1500) break;
+          offs.push({ i, at: text ? text.length + 1 : 0 });
+          text = text ? text + ' ' + sp : sp;
+        }
+        i++;
+      }
+      if (!text) continue;
+      const id = `r${state.cloudReading}-${state.cloudSeq++}`;
+      state.cloudLines.set(id, { chars: text.length, offs });
+      const line = { id, text, voice: state.cloudVoice };
+      if (state.cloudLang) line.language = state.cloudLang;
+      lines.push(line);
+    }
+    state.cloudNext = i;
+    state.cloudAllQueued = i >= S.length;
+    return lines;
+  }
+
+  function playCloud(i) {
+    state.token++;                      // cala a voz do aparelho, se estava tocando
+    clearTimers();
+    stopKeepAlive();
+    if (synth && (synth.speaking || synth.pending)) hush();
+    state.cloudReading++;
+    state.cloudSeq = 0;
+    state.cloudLines.clear();
+    state.cloudQueued = 0;
+    state.cloudStarted = 0;
+    state.cloudCur = null;
+    state.cloudTest = false;
+    state.cloudResume = null;
+    state.index = i;
+    const lines = buildLines(i, 6);
+    if (!lines.length) { finish(); return; }
+    state.cloudQueued = lines.length;
+    state.playing = true;
+    mark(i);
+    follow(false);
+    updateTransport();
+    savePos();
+    lockScreen();
+    const reading = state.cloudReading;
+    state.cloud.speak(lines).catch((e) => onCloudError(e, reading));
+  }
+
+  function topUpCloud() {
+    if (state.cloudAllQueued || !state.cloud) return;
+    const reading = state.cloudReading;
+    const lines = buildLines(state.cloudNext, 6);
+    if (!lines.length) return;
+    state.cloudQueued += lines.length;
+    state.cloud.add(lines).catch((e) => onCloudError(e, reading));
+  }
+
+  function setIndexFromCloud(k) {
+    if (k === state.index && state.shown === k) return;
+    state.index = k;
+    mark(k);
+    follow(false);
+    updateTransport();
+    savePos();
+  }
+
+  function onCloudLine(e) {
+    const info = e && e.id ? state.cloudLines.get(e.id) : null;
+    if (!info) return;
+    state.everStarted = true;
+    state.cloudStarted++;
+    // Calibra a velocidade real (caracteres por ms em 1×) com a linha que acabou de tocar.
+    if (state.cloudCur && state.cloudLastMs > 1500) {
+      const perMs = state.cloudCur.chars / state.cloudLastMs / cloudRate();
+      state.cloudPerMs = state.cloudPerMs ? state.cloudPerMs * 0.5 + perMs * 0.5 : perMs;
+    }
+    state.cloudCur = info;
+    state.cloudLastMs = 0;
+    setIndexFromCloud(info.offs[0].i);
+    if (state.cloudQueued - (e.line + 1) < 3) topUpCloud();
+  }
+
+  // A plataforma só diz quantos ms da linha já tocaram; a frase atual é estimada pelo ritmo de fala.
+  function onCloudPosition(e) {
+    const info = e && e.id ? state.cloudLines.get(e.id) : null;
+    if (!info || info !== state.cloudCur) return;
+    state.cloudLastMs = e.ms;
+    if (!state.playing) return;
+    const at = e.ms * (state.cloudPerMs || 0.014) * cloudRate();
+    let k = info.offs[0].i;
+    for (const o of info.offs) { if (o.at <= at) k = o.i; else break; }
+    if (k > state.index) setIndexFromCloud(k);
+  }
+
+  function onCloudState(e) {
+    const s = e && e.state;
+    state.cloudState = s;
+    if (s === 'speaking') state.everStarted = true;
+    if (s !== 'idle') return;
+    const reason = e.reason || 'upstream_error';
+    if (reason === 'stopped' || reason === 'replaced') return;
+    if (state.cloudTest) { state.cloudTest = false; return; }
+    cloudEnded(reason);
+  }
+
+  function onCloudError(e, reading) {
+    if (reading !== state.cloudReading) return;
+    const code = (e && e.code) || 'upstream_error';
+    if (code === 'stopped') return;     // o motivo chega pelo onState
+    cloudEnded(code);
+  }
+
+  function cloudEnded(reason) {
+    if (reason === 'completed') {
+      if (!state.playing || !state.cloudStarted) return;
+      if (!state.cloudAllQueued) { playCloud(state.cloudNext); return; }
+      finish();
+      return;
+    }
+    const wasPlaying = state.playing;
+    state.playing = false;
+    state.cloudResume = null;
+    unlockScreen();
+    updateTransport();
+    savePos();
+    if (reason === 'not_granted' || reason === 'unavailable') { cloudGone(reason); return; }
+    if (!wasPlaying && reason !== 'no_gesture') return;
+    const quiet = ['viewer_stopped', 'hidden', 'time_limit'];
+    const msgs = {
+      interrupted: 'A leitura foi interrompida. Toque em Continuar para seguir.',
+      no_gesture: 'Toque em Ouvir para começar.',
+      busy: 'O microfone está em uso. Tente de novo em instantes.',
+      rate_limited: CLOUD_TEXT.limit,
+    };
+    if (quiet.includes(reason)) return;
+    showToast(msgs[reason] || CLOUD_TEXT.failed);
+  }
+
+  // Sem a voz neural, volta para as vozes do aparelho, mas não continua a leitura sozinho.
+  function cloudGone(reason) {
+    if (!state.cloud) return;
+    state.cloud = null;
+    state.engine = 'device';
+    renderVoiceSelect();
+    refreshVoiceUI();
+    showToast(reason === 'not_granted' ? CLOUD_TEXT.off : CLOUD_TEXT.gone);
+  }
+
+  function pauseCloud() {
+    state.playing = false;
+    state.cloudResume = { hash: state.hash, index: state.index, reading: state.cloudReading };
+    if (state.cloud) state.cloud.pause().catch(() => {});
+    unlockScreen();
+    updateTransport();
+    savePos();
+  }
+
+  function stopCloud() {
+    state.playing = false;
+    state.cloudResume = null;
+    if (state.cloud) state.cloud.stop().catch(() => {});
+    unlockScreen();
+  }
+
+  /* ---------- voz neural no aparelho (Kokoro, motor "neural") ---------- */
+  // O worker gera o áudio frase a frase; a página toca cada frase num único <audio>,
+  // que não fica mudo no modo silencioso do iPhone e mostra controles na tela de bloqueio.
+  const NEURAL_SR = 24000;
+  const NEURAL_MB = { q8: 92, fp32: 325 };
+  const NEURAL_AHEAD = 3;
+  const neural = {
+    worker: null, status: 'none', error: '', device: '', quality: 'q8', voice: 'pf_dora',
+    ready: null, readyResolve: null, readyReject: null,
+    nextId: 1, reqs: new Map(), cache: new Map(), inflight: false, waiting: false,
+    speed: 0, mode: 'live', loadedKey: '', unlocked: false, gapT: 0, silentUrl: '',
+    exporting: false, exportSigAtStart: '', exportBlob: null, exportUrl: '', exportSig: '',
+    exportMarks: [], exportSeconds: 0,
+  };
+  const hasText = (s) => !!s && /[\p{L}\p{N}]/u.test(s.speak);
+  const neuralKey = (s) => `${neural.quality}|${neural.voice}|${s.speak}`;
+  const neuralItem = (i) => { const s = state.sentences[i]; return s ? neural.cache.get(neuralKey(s)) : undefined; };
+
+  function toInt16(f32) {
+    const out = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+      const v = Math.max(-1, Math.min(1, f32[i]));
+      out[i] = v < 0 ? v * 32768 : v * 32767;
+    }
+    return out;
+  }
+  function wavBlob(parts, samples) {
+    const head = new DataView(new ArrayBuffer(44));
+    const put = (o, t) => { for (let k = 0; k < t.length; k++) head.setUint8(o + k, t.charCodeAt(k)); };
+    put(0, 'RIFF'); head.setUint32(4, 36 + samples * 2, true); put(8, 'WAVE'); put(12, 'fmt ');
+    head.setUint32(16, 16, true); head.setUint16(20, 1, true); head.setUint16(22, 1, true);
+    head.setUint32(24, NEURAL_SR, true); head.setUint32(28, NEURAL_SR * 2, true);
+    head.setUint16(32, 2, true); head.setUint16(34, 16, true); put(36, 'data'); head.setUint32(40, samples * 2, true);
+    return new Blob([head.buffer, ...parts], { type: 'audio/wav' });
+  }
+
+  function neuralStart(opts = {}) {
+    if (neural.status === 'ready' || neural.status === 'loading') return neural.ready;
+    neural.status = 'loading';
+    neural.error = '';
+    neural.ready = new Promise((res, rej) => { neural.readyResolve = res; neural.readyReject = rej; });
+    neural.ready.catch(() => {});
+    neural.quiet = !!opts.cachedOnly;
+    try {
+      const w = new Worker(new URL('kokoro-worker.js', location.href), { type: 'module' });
+      w.onmessage = onNeuralMessage;
+      w.onerror = (e) => neuralFailed((e && e.message) || 'o navegador não conseguiu iniciar a voz neural');
+      neural.worker = w;
+      w.postMessage({ type: 'init', quality: neural.quality, device: 'auto', cachedOnly: !!opts.cachedOnly });
+    } catch (e) {
+      neuralFailed(String(e && e.message || e));
+    }
+    refreshNeuralUI();
+    return neural.ready;
+  }
+
+  function neuralStop(reason) {
+    if (neural.worker) neural.worker.terminate();
+    neural.worker = null;
+    neural.inflight = false;
+    for (const r of neural.reqs.values()) r.reject(new Error(reason));
+    neural.reqs.clear();
+    if (neural.readyReject) neural.readyReject(new Error(reason));
+    neural.readyReject = null;
+  }
+
+  function neuralFailed(msg) {
+    neuralStop(msg);
+    if (msg === 'NOT_CACHED') {            // modelo não está guardado: espera o toque em Baixar
+      neural.status = 'none';
+      store.set('neuralModel', '');
+    } else {
+      neural.status = 'error';
+      neural.error = msg;
+      if (isNeural() && state.playing) { pauseNeural(); showToast('A voz neural não carregou. Veja os ajustes.'); }
+    }
+    neural.exporting = false;
+    refreshNeuralUI();
+  }
+
+  function onNeuralMessage(e) {
+    const m = e.data || {};
+    if (m.type === 'progress') { if (m.stage === 'modelo') neuralProgress(m.loaded, m.total, m.cached); return; }
+    if (m.type === 'ready') {
+      neural.status = 'ready';
+      neural.device = m.device;
+      neural.threads = m.threads || 1;
+      store.set('neuralModel', neural.quality);
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (err) { /* opcional */ }
+      if (neural.readyResolve) neural.readyResolve();
+      refreshNeuralUI();
+      pumpNeural();
+      return;
+    }
+    if (m.type === 'audio') {
+      const r = neural.reqs.get(m.id);
+      neural.reqs.delete(m.id);
+      if (r) r.resolve(m);
+      return;
+    }
+    if (m.type === 'error') {
+      const r = m.id != null ? neural.reqs.get(m.id) : null;
+      if (r) { neural.reqs.delete(m.id); r.reject(new Error(m.message)); }
+      else neuralFailed(m.message);
+    }
+  }
+
+  function neuralRequest(text) {
+    return neuralStart().then(() => new Promise((resolve, reject) => {
+      const id = neural.nextId++;
+      neural.reqs.set(id, { resolve, reject });
+      neural.worker.postMessage({ type: 'generate', id, text, voice: neural.voice });
+    }));
+  }
+
+  // Escolhe a próxima frase a gerar: primeiro as que vão tocar, depois as da exportação.
+  function neuralTarget() {
+    const S = state.sentences;
+    if (state.playing && isNeural() && neural.mode === 'live') {
+      const end = Math.min(S.length, state.index + 1 + NEURAL_AHEAD);
+      for (let k = state.index; k < end; k++) if (hasText(S[k]) && !neuralItem(k)) return k;
+    }
+    if (neural.exporting) {
+      for (let k = 0; k < S.length; k++) if (hasText(S[k]) && !neuralItem(k)) return k;
+    }
+    return -1;
+  }
+
+  function pumpNeural() {
+    if (!NEURAL || neural.inflight) return;
+    const k = neuralTarget();
+    if (k < 0) return;
+    if (neural.status !== 'ready') {
+      if (neural.status !== 'loading') neuralStart();
+      return;                                // volta a rodar quando o modelo ficar pronto
+    }
+    const s = state.sentences[k];
+    const key = neuralKey(s);
+    neural.inflight = true;
+    neuralRequest(s.speak).then((m) => {
+      const pcm = toInt16(m.samples);
+      const seconds = pcm.length / NEURAL_SR;
+      neural.cache.set(key, { pcm, seconds, url: URL.createObjectURL(wavBlob([pcm.buffer], pcm.length)) });
+      if (seconds > 0.4 && m.ms) {
+        const r = (m.ms / 1000) / seconds;
+        neural.speed = neural.speed ? neural.speed * 0.6 + r * 0.4 : r;
+      }
+    }).catch((err) => {
+      const msg = String(err && err.message || err);
+      if (neural.status === 'ready') {         // falha só desta frase: pula
+        neural.cache.set(key, { pcm: new Int16Array(0), seconds: 0, url: '', failed: true });
+        showToast('Uma frase não pôde ser gerada e foi pulada.');
+      } else if (msg !== 'NOT_CACHED') {
+        neural.inflight = false;
+        return;
+      }
+    }).finally(() => {
+      neural.inflight = false;
+      refreshNeuralUI();
+      if (isNeural() && state.playing && neural.mode === 'live' && neural.waiting) startNeuralSentence();
+      if (neural.exporting) exportProgress();
+      pumpNeural();
+    });
+  }
+
+  function silentUrl() {
+    if (!neural.silentUrl) neural.silentUrl = URL.createObjectURL(wavBlob([new Int16Array(2400).buffer], 2400));
+    return neural.silentUrl;
+  }
+
+  // iPhone: o primeiro play() de um <audio> precisa vir de um toque. Tocar um silêncio curto
+  // dentro do toque libera o mesmo elemento para tocar as frases quando ficarem prontas.
+  function unlockPlayer() {
+    const p = el.player;
+    if (!p || neural.unlocked) return;
+    try {
+      neural.loadedKey = '';
+      p.src = silentUrl();
+      const pr = p.play();
+      if (pr) pr.then(() => { neural.unlocked = true; }).catch(() => {});
+    } catch (e) { /* tenta de novo no próximo toque */ }
+  }
+
+  function setPlayerRate() {
+    const p = el.player;
+    p.defaultPlaybackRate = state.rate;
+    p.playbackRate = state.rate;
+    if ('preservesPitch' in p) p.preservesPitch = true;
+    if ('webkitPreservesPitch' in p) p.webkitPreservesPitch = true;
+  }
+
+  function playNeural(i) {
+    if (el.player) el.player.pause();
+    state.token++;                           // cala as outras vozes
+    clearTimers();
+    stopKeepAlive();
+    if (synth && (synth.speaking || synth.pending)) hush();
+    if (state.cloud && state.cloud.active()) { state.cloudReading++; state.cloud.stop().catch(() => {}); }
+    clearTimeout(neural.gapT);
+    neural.mode = 'live';
+    state.index = i;
+    state.playing = true;
+    state.everStarted = true;
+    preferPlayback();
+    unlockPlayer();
+    lockScreen();
+    if (neural.status !== 'ready' && neural.status !== 'loading') neuralStart();
+    startNeuralSentence();
+  }
+
+  function startNeuralSentence() {
+    if (!state.playing || !isNeural() || neural.mode !== 'live') return;
+    const S = state.sentences;
+    while (state.index < S.length && !hasText(S[state.index])) state.index++;
+    if (state.index >= S.length) { finish(); return; }
+    const i = state.index;
+    const item = neuralItem(i);
+    mark(i);
+    follow(false);
+    savePos();
+    if (!item) {
+      neural.waiting = true;
+      updateTransport();
+      pumpNeural();
+      return;
+    }
+    neural.waiting = false;
+    if (item.failed) { state.index++; startNeuralSentence(); return; }
+    const p = el.player;
+    neural.loadedKey = neuralKey(S[i]);
+    p.src = item.url;
+    setPlayerRate();
+    const pr = p.play();
+    if (pr) pr.catch((err) => {
+      if (err && err.name === 'NotAllowedError') { pauseNeural(); showToast('O iPhone bloqueou o áudio. Toque em Continuar.'); }
+    });
+    updateTransport();
+    updateMediaSession();
+    pumpNeural();
+  }
+
+  function onPlayerEnded() {
+    if (!isNeural() || !state.playing) return;
+    if (neural.mode === 'full') { finish(); return; }
+    if (!neural.loadedKey) return;             // fim do silêncio de liberação ou da amostra
+    const S = state.sentences;
+    const cur = S[state.index];
+    const next = S[state.index + 1];
+    neural.loadedKey = '';
+    state.index++;
+    const gap = next && cur && next.para !== cur.para ? state.paraPause / state.rate : 0;
+    if (gap) neural.gapT = setTimeout(startNeuralSentence, gap);
+    else startNeuralSentence();
+  }
+
+  function onPlayerTime() {
+    if (!isNeural() || neural.mode !== 'full' || !neural.exportMarks.length) return;
+    const t = el.player.currentTime + 0.05;
+    let k = 0;
+    for (let j = 0; j < neural.exportMarks.length; j++) { if (neural.exportMarks[j].t <= t) k = j; else break; }
+    const i = neural.exportMarks[k].i;
+    if (i !== state.index || state.shown !== i) {
+      state.index = i;
+      mark(i);
+      follow(false);
+      updateTransport();
+      savePos();
+    }
+  }
+
+  function pauseNeural() {
+    state.playing = false;
+    neural.waiting = false;
+    clearTimeout(neural.gapT);
+    if (el.player) el.player.pause();
+    unlockScreen();
+    updateTransport();
+    savePos();
+    updateMediaSession();
+  }
+
+  function stopNeural() {
+    pauseNeural();
+    neural.loadedKey = '';
+    if (neural.mode === 'full') { try { el.player.currentTime = 0; } catch (e) { /* sem mídia */ } }
+    neural.mode = 'live';
+  }
+
+  // Continua de onde parou, se a frase atual ainda é a que está carregada no player.
+  function resumeNeural(from) {
+    const p = el.player;
+    const S = state.sentences;
+    if (neural.mode === 'full' && exportValid()) { playExport(from); return true; }
+    if (from == null && neural.loadedKey && S[state.index] && neural.loadedKey === neuralKey(S[state.index]) &&
+        p.currentTime > 0 && !p.ended) {
+      state.playing = true;
+      preferPlayback();
+      lockScreen();
+      setPlayerRate();
+      const pr = p.play();
+      if (pr) pr.catch(() => {});
+      updateTransport();
+      updateMediaSession();
+      pumpNeural();
+      return true;
+    }
+    return false;
+  }
+
+  function textTitle() {
+    const first = state.sentences[0] ? state.sentences[0].text : 'Texto';
+    return first.length > 60 ? first.slice(0, 57) + '…' : first;
+  }
+
+  function updateMediaSession() {
+    if (!('mediaSession' in navigator) || !isNeural()) return;
+    try {
+      if (typeof MediaMetadata !== 'undefined') navigator.mediaSession.metadata = new MediaMetadata({ title: textTitle(), artist: 'Lê pra Mim' });
+      navigator.mediaSession.playbackState = state.playing ? 'playing' : 'paused';
+    } catch (e) { /* opcional */ }
+  }
+
+  function setupMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    const on = (action, fn) => { try { navigator.mediaSession.setActionHandler(action, fn); } catch (e) { /* não suportado */ } };
+    on('play', () => { if (isNeural()) play(); });
+    on('pause', () => { if (isNeural()) pause(); });
+    on('previoustrack', () => { if (isNeural()) step(-1); });
+    on('nexttrack', () => { if (isNeural()) step(1); });
+  }
+
+  /* Áudio do texto todo: gera todas as frases e junta num WAV único. */
+  const currentSig = () => `${state.hash}|${neural.quality}|${neural.voice}|${state.normalize}|${state.paraPause}`;
+  const exportValid = () => !!neural.exportBlob && neural.exportSig === currentSig();
+
+  function toggleExport() {
+    if (neural.exporting) {
+      neural.exporting = false;
+      refreshExportUI();
+      el.exportNote.textContent = 'Geração cancelada. As frases já prontas ficam guardadas.';
+      return;
+    }
+    if (!state.sentences.some(hasText)) { showToast('Não há texto para gerar.'); return; }
+    neural.exporting = true;
+    neural.exportSigAtStart = currentSig();
+    refreshExportUI();
+    exportProgress();
+    pumpNeural();
+  }
+
+  function exportProgress() {
+    const S = state.sentences;
+    let total = 0;
+    let done = 0;
+    for (let k = 0; k < S.length; k++) {
+      if (!hasText(S[k])) continue;
+      total++;
+      if (neuralItem(k)) done++;
+    }
+    if (neural.exportSigAtStart !== currentSig()) {
+      neural.exporting = false;
+      refreshExportUI();
+      el.exportNote.textContent = 'O texto ou a voz mudou. Toque de novo para gerar.';
+      return;
+    }
+    el.exportMeterFill.style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+    if (neural.status === 'loading') el.exportNote.textContent = 'Preparando a voz neural…';
+    else el.exportNote.textContent = `Gerando: ${fmtNum(done)} de ${fmtNum(total)} frases. Deixe a tela ligada.`;
+    if (total && done === total) buildExport();
+  }
+
+  function buildExport() {
+    neural.exporting = false;
+    const S = state.sentences;
+    const parts = [];
+    const marks = [];
+    let pos = 0;
+    let lastPara = -1;
+    for (let k = 0; k < S.length; k++) {
+      const it = neuralItem(k);
+      if (!it || !it.pcm.length) continue;
+      if (lastPara !== -1) {
+        const gap = Math.round(NEURAL_SR * (S[k].para !== lastPara ? Math.max(0.35, state.paraPause / 1000) : 0.12));
+        parts.push(new Int16Array(gap).buffer);
+        pos += gap;
+      }
+      marks.push({ i: k, t: pos / NEURAL_SR });
+      parts.push(it.pcm.buffer);
+      pos += it.pcm.length;
+      lastPara = S[k].para;
+    }
+    if (neural.exportUrl) URL.revokeObjectURL(neural.exportUrl);
+    neural.exportBlob = wavBlob(parts, pos);
+    neural.exportUrl = URL.createObjectURL(neural.exportBlob);
+    neural.exportMarks = marks;
+    neural.exportSeconds = pos / NEURAL_SR;
+    neural.exportSig = currentSig();
+    refreshExportUI();
+    showToast('Áudio pronto. Toque em “Ouvir o áudio completo” ou em “Salvar áudio”.');
+  }
+
+  function playExport(fromIndex) {
+    if (!exportValid()) return;
+    state.token++;
+    clearTimers();
+    if (synth && (synth.speaking || synth.pending)) hush();
+    clearTimeout(neural.gapT);
+    const p = el.player;
+    const wasFull = neural.mode === 'full' && p.src === neural.exportUrl;
+    neural.mode = 'full';
+    neural.loadedKey = '';
+    state.playing = true;
+    state.everStarted = true;
+    preferPlayback();
+    lockScreen();
+    if (!wasFull) p.src = neural.exportUrl;
+    setPlayerRate();
+    const target = fromIndex == null ? null : (neural.exportMarks.find((m) => m.i >= fromIndex) || null);
+    const seek = () => { if (target) { try { p.currentTime = target.t; } catch (e) { /* ignora */ } } };
+    if (p.readyState >= 1) seek(); else p.addEventListener('loadedmetadata', seek, { once: true });
+    const pr = p.play();
+    if (pr) pr.catch((err) => { if (err && err.name === 'NotAllowedError') { pauseNeural(); showToast('Toque em Continuar para ouvir.'); } });
+    updateTransport();
+    updateMediaSession();
+  }
+
+  function fileBaseName() {
+    const words = (state.sentences[0] ? state.sentences[0].text : 'texto')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().match(/[a-z0-9]+/g) || ['texto'];
+    return 'le-pra-mim-' + words.slice(0, 5).join('-');
+  }
+
+  async function saveExport() {
+    if (!exportValid()) return;
+    const name = fileBaseName() + '.wav';
+    const file = new File([neural.exportBlob], name, { type: 'audio/wav' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: name });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+    const a = document.createElement('a');
+    a.href = neural.exportUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function neuralProgress(loaded, total, cached) {
+    if (!NEURAL) return;
+    const pct = total ? Math.min(100, Math.round(loaded / total * 100)) : 0;
+    el.neuralMeter.hidden = false;
+    el.neuralMeterFill.style.width = pct + '%';
+    if (cached) el.neuralNote.textContent = 'Carregando a voz guardada no aparelho…';
+    else if (total) el.neuralNote.textContent = `Baixando: ${fmtNum(loaded / 1048576, 0, 0)} de ${fmtNum(total / 1048576, 0, 0)} MB. Na primeira vez pode levar alguns minutos.`;
+    if (isNeural() && state.playing && neural.waiting) {
+      el.posText.textContent = cached ? 'Carregando a voz…' : `Baixando a voz: ${pct}%`;
+    }
+  }
+
+  function neuralSpeedText() {
+    if (!neural.speed) return '';
+    if (neural.speed <= 0.9) return ' Gera mais rápido que a fala.';
+    return ` Leva cerca de ${fmtNum(neural.speed, 1, 1)} min para gerar 1 min de fala: para ouvir sem pausas, use “Gerar áudio do texto todo”.`;
+  }
+
+  function refreshExportUI() {
+    if (!NEURAL) return;
+    const valid = exportValid();
+    el.exportActions.hidden = !valid || neural.exporting;
+    el.exportMeter.hidden = !neural.exporting;
+    el.exportBtn.textContent = neural.exporting ? 'Cancelar geração' : (valid ? 'Gerar de novo' : 'Gerar áudio do texto todo');
+    if (!neural.exporting) {
+      if (valid) {
+        const mb = neural.exportBlob.size / 1048576;
+        el.exportNote.textContent = `Áudio pronto: ${fmtClock(neural.exportSeconds)}, ${fmtNum(mb, 1, 1)} MB.`;
+      } else if (!/cancelada|mudou/.test(el.exportNote.textContent)) {
+        el.exportNote.textContent = 'Gera tudo antes e vira um arquivo de áudio: dá para ouvir com a tela bloqueada e salvar no iPhone.';
+      }
+    }
+  }
+
+  function fmtClock(sec) {
+    const s = Math.round(sec);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = String(s % 60).padStart(2, '0');
+    return h ? `${h}h${String(m).padStart(2, '0')}min` : `${m}min${r}s`;
+  }
+
+  function refreshNeuralUI() {
+    if (!NEURAL) return;
+    el.neuralCard.hidden = !isNeural();
+    const st = neural.status;
+    el.neuralPill.dataset.s = st;
+    const saved = store.get('neuralModel', '') === neural.quality;
+    el.neuralPill.textContent = st === 'ready' ? 'Pronta' : st === 'loading' ? 'Carregando…' : st === 'error' ? 'Não carregou' : (saved ? 'Baixada' : 'Não baixada');
+    el.neuralDownload.hidden = st === 'ready' || st === 'loading';
+    el.neuralDownload.textContent = st === 'error' ? 'Tentar de novo' : `Baixar voz neural (${NEURAL_MB[neural.quality]} MB)`;
+    el.neuralQuality.value = neural.quality;
+    el.neuralQuality.disabled = st === 'loading';
+    if (st !== 'loading') el.neuralMeter.hidden = true;
+    if (st === 'ready') {
+      const where = neural.device === 'webgpu' ? 'Usando a GPU do aparelho.'
+        : `Usando o processador do aparelho (${neural.threads > 1 ? neural.threads + ' núcleos' : '1 núcleo'}).`;
+      el.neuralNote.textContent = where + neuralSpeedText();
+    } else if (st === 'error') {
+      el.neuralNote.textContent = `Não carregou (${neural.error}). Confira a internet e tente de novo, ou use a qualidade Leve.`;
+    } else if (st === 'none') {
+      el.neuralNote.textContent = `Roda no próprio celular, de graça e sem limite. Baixa uma vez (${NEURAL_MB[neural.quality]} MB) e depois funciona até sem internet. Prefira o Wi-Fi.`;
+    }
+    refreshExportUI();
+  }
+
+  function setupNeural() {
+    if (!NEURAL) return;
+    neural.quality = store.get('neuralQuality', 'q8') === 'fp32' ? 'fp32' : 'q8';
+    el.player.addEventListener('ended', onPlayerEnded);
+    el.player.addEventListener('timeupdate', onPlayerTime);
+    el.player.addEventListener('pause', () => {
+      // Pausa vinda de fora (tela de bloqueio, fone): acompanha o estado.
+      if (isNeural() && state.playing && !el.player.ended && neural.mode === 'full') { state.playing = false; unlockScreen(); updateTransport(); }
+    });
+    el.neuralDownload.addEventListener('click', () => { if (neural.status === 'error') neural.status = 'none'; neuralStart(); });
+    el.neuralQuality.addEventListener('change', () => {
+      const q = el.neuralQuality.value === 'fp32' ? 'fp32' : 'q8';
+      if (q === neural.quality) return;
+      if (state.playing && isNeural()) pause();
+      neuralStop('reiniciado');
+      neural.status = 'none';
+      neural.quality = q;
+      store.set('neuralQuality', q);
+      refreshNeuralUI();
+      if (store.get('neuralModel', '') === q) neuralStart({ cachedOnly: true });
+    });
+    el.exportBtn.addEventListener('click', toggleExport);
+    el.exportPlay.addEventListener('click', () => {
+      if (state.engine !== 'neural') return;
+      playExport(state.index > 0 ? state.index : null);
+    });
+    el.exportSave.addEventListener('click', saveExport);
+    setupMediaSession();
+  }
+
+  function play(from) {
+    if (!canSpeak()) return;
+    if (state.view === 'edit') showView('read');
+    const n = state.sentences.length;
+    if (!n) {
+      showView('edit');
+      el.textInput.focus();
+      showToast('Cole ou digite um texto primeiro.');
+      return;
+    }
+    let i = from == null ? state.index : from;
+    if (!(i >= 0 && i < n)) i = 0;
+    if (isNeural()) {
+      if (!resumeNeural(from)) playNeural(i);
+      return;
+    }
+    if (el.player && !el.player.paused) el.player.pause();   // saiu da voz neural
+    if (isCloud()) {
+      const r = state.cloudResume;
+      if (from == null && r && r.hash === state.hash && r.index === state.index &&
+          r.reading === state.cloudReading && state.cloudState === 'paused') {
+        state.playing = true;
+        state.cloudResume = null;
+        lockScreen();
+        updateTransport();
+        const reading = state.cloudReading;
+        state.cloud.resume().catch((e) => onCloudError(e, reading));
+        return;
+      }
+      playCloud(i);
+      return;
+    }
+    if (!synth) return;
+    if (state.cloud && state.cloud.active()) {
+      state.cloudReading++;
+      state.cloud.stop().catch(() => {});
+    }
+    const tok = ++state.token;
+    clearTimers();
+    state.index = i;
+    state.playing = true;
+    state.errors = 0;
+    preferPlayback();
+    lockScreen();
+    startKeepAlive();
+    updateTransport();
+    armStartCheck(tok);
+    speakNow(() => speakAt(tok));
+  }
+
+  function pause() {
+    if (isNeural()) { pauseNeural(); return; }
+    if (isCloud()) { pauseCloud(); return; }
+    state.token++;
+    clearTimers();
+    hush();
+    state.playing = false;
+    unlockScreen();
+    stopKeepAlive();
+    updateTransport();
+    savePos();
+  }
+
+  function stop() {
+    if (isNeural()) stopNeural();
+    else if (isCloud()) stopCloud();
+    else pause();
+    state.index = 0;
+    if (state.sentences.length) mark(0);
+    updateTransport();
+    savePos();
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+
+  function finish() {
+    state.cloudResume = null;
+    if (isNeural()) { neural.mode = 'live'; neural.loadedKey = ''; neural.waiting = false; }
+    if (!state.everStarted && !isCloud() && !isNeural()) { // "leu" tudo sem nunca falar: o navegador não tem voz de verdade
+      noSound();
+      state.index = 0;
+      if (state.sentences.length) mark(0);
+      updateTransport();
+      savePos();
+      return;
+    }
+    state.token++;
+    clearTimers();
+    state.playing = false;
+    unlockScreen();
+    stopKeepAlive();
+    state.index = 0;
+    if (state.sentences.length) mark(0);
+    updateTransport();
+    savePos();
+    showToast('Fim do texto.');
+  }
+
+  function togglePlay() { if (state.playing) pause(); else play(); }
+
+  function step(d) {
+    const n = state.sentences.length;
+    if (!n) return;
+    const i = clamp(state.index + d, 0, n - 1);
+    if (state.playing) { play(i); return; }
+    state.index = i;
+    mark(i);
+    follow(true);
+    updateTransport();
+    savePos();
+  }
+
+  function restartSoon() {
+    clearTimeout(state.restartT);
+    state.restartT = setTimeout(() => { if (state.playing) play(state.index); }, 300);
+  }
+
+  // O Chrome de computador corta vozes do Google depois de uns 15 s; pausar e retomar evita o corte.
+  function startKeepAlive() {
+    stopKeepAlive();
+    if (!synth || IS_ANDROID || !state.voice || state.voice.localService || !/google/i.test(state.voice.name)) return;
+    state.keepAlive = setInterval(() => {
+      if (synth.speaking && !synth.paused) { synth.pause(); synth.resume(); }
+    }, 10000);
+  }
+  function stopKeepAlive() { clearInterval(state.keepAlive); state.keepAlive = 0; }
+
+  async function lockScreen() {
+    if (!('wakeLock' in navigator) || state.wakeLock || document.visibilityState !== 'visible') return;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      state.wakeLock = lock;
+      lock.addEventListener('release', () => { if (state.wakeLock === lock) state.wakeLock = null; });
+      if (!state.playing) unlockScreen();
+    } catch (e) { /* sem trava de tela */ }
+  }
+  function unlockScreen() {
+    const lock = state.wakeLock;
+    state.wakeLock = null;
+    if (lock) lock.release().catch(() => {});
+  }
+
+  /* ---------- ajustes ---------- */
+  function setRate(r, apply) {
+    const [lo, hi] = rateBounds();
+    state.rate = Math.round(clamp(r, lo, hi) * 100) / 100;
+    el.rate.value = String(state.rate);
+    el.rateOut.textContent = fmtRate(state.rate);
+    el.speedBtn.textContent = fmtRate(state.rate);
+    el.speedBtn.setAttribute('aria-label', `Velocidade ${fmtRate(state.rate)}. Toque para mudar.`);
+    store.set('rate', state.rate);
+    updateStats();
+    updateTransport();
+    // A voz neural muda o ritmo sem recomeçar; a do aparelho recomeça a frase atual.
+    if (state.cloud && typeof state.cloud.setRate === 'function') state.cloud.setRate(cloudRate()).catch(() => {});
+    if (NEURAL && el.player) setPlayerRate();
+    if (apply && state.playing && !isCloud() && !isNeural()) restartSoon();
+  }
+  function setPitch(p, apply) {
+    state.pitch = Math.round(clamp(p, 0.7, 1.3) * 100) / 100;
+    el.pitch.value = String(state.pitch);
+    el.pitchOut.textContent = state.pitch === 1 ? 'normal' : fmtNum(state.pitch, 2, 2);
+    store.set('pitch', state.pitch);
+    if (apply && state.playing) restartSoon();
+  }
+
+  async function openFile(file) {
+    if (file.size > 5 * 1024 * 1024) { showToast('Arquivo grande demais. Use um .txt de até 5 MB.'); return; }
+    try {
+      const buf = await file.arrayBuffer();
+      let text;
+      try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+      catch (e) { text = new TextDecoder('windows-1252').decode(buf); }
+      const prev = state.view === 'edit' ? el.textInput.value : state.text;
+      if (state.playing) pause();
+      setText(text);
+      showView('read');
+      window.scrollTo({ top: 0 });
+      showToast(`“${file.name}” aberto.`, 'Desfazer', () => setText(prev));
+    } catch (e) {
+      showToast('Não consegui abrir esse arquivo. Tente um .txt.');
+    }
+  }
+
+  /* ---------- eventos ---------- */
+  el.playBtn.addEventListener('click', togglePlay);
+  el.prevBtn.addEventListener('click', () => step(-1));
+  el.nextBtn.addEventListener('click', () => step(1));
+  el.stopBtn.addEventListener('click', stop);
+  el.speedBtn.addEventListener('click', () => {
+    const [lo, hi] = rateBounds();
+    const options = SPEEDS.filter((s) => s >= lo - 0.001 && s <= hi + 0.001);
+    const next = options.find((s) => s > state.rate + 0.001);
+    setRate(next == null ? options[0] : next, true);
+  });
+
+  el.seek.addEventListener('input', () => {
+    const i = Number(el.seek.value);
+    state.index = i;
+    mark(i);
+    follow(true);
+    updateTransport();
+    if (state.playing) {
+      clearTimeout(state.restartT);
+      state.restartT = setTimeout(() => play(i), 250);
+    } else {
+      savePos();
+    }
+  });
+
+  el.readView.addEventListener('click', (e) => {
+    const t = e.target instanceof Element ? e.target : null;
+    if (!t) return;
+    const span = t.closest('.s');
+    if (span) {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+      play(Number(span.dataset.i));
+      return;
+    }
+    if (t.closest('[data-action="edit"]')) { showView('edit'); el.textInput.focus(); }
+  });
+
+  el.tabRead.addEventListener('click', () => showView('read'));
+  el.tabEdit.addEventListener('click', () => { showView('edit'); el.textInput.focus(); });
+
+  el.textInput.addEventListener('input', () => {
+    autosize();
+    clearTimeout(state.saveT);
+    state.saveT = setTimeout(() => {
+      const v = el.textInput.value;
+      store.set('text', v === SAMPLE ? null : v);
+      el.sampleBadge.hidden = v !== SAMPLE;
+      updateStats();
+    }, 300);
+  });
+
+  el.openBtn.addEventListener('click', () => el.fileInput.click());
+  el.fileInput.addEventListener('change', () => {
+    const f = el.fileInput.files && el.fileInput.files[0];
+    if (f) openFile(f);
+    el.fileInput.value = '';
+  });
+  ['dragenter', 'dragover'].forEach((type) => el.sheet.addEventListener(type, (e) => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+      e.preventDefault();
+      el.sheet.classList.add('drop');
+    }
+  }));
+  ['dragleave', 'drop'].forEach((type) => el.sheet.addEventListener(type, () => el.sheet.classList.remove('drop')));
+  el.sheet.addEventListener('drop', (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) { e.preventDefault(); openFile(f); }
+  });
+
+  el.clearBtn.addEventListener('click', () => {
+    const prev = state.view === 'edit' ? el.textInput.value : state.text;
+    if (!prev) return;
+    if (state.playing) pause();
+    setText('');
+    showView('edit');
+    el.textInput.focus();
+    showToast('Texto apagado.', 'Desfazer', () => { setText(prev); autosize(); updateStats(); });
+  });
+
+  el.toastAction.addEventListener('click', () => {
+    const fn = state.toastAction;
+    state.toastAction = null;
+    el.toast.classList.remove('show');
+    if (fn) fn();
+  });
+
+  el.voiceSelect.addEventListener('change', () => selectVoice(el.voiceSelect.value));
+  el.cloudLang.addEventListener('change', () => {
+    state.cloudLang = el.cloudLang.value;
+    store.set('cloudLang', state.cloudLang);
+    if (state.playing && isCloud()) restartSoon();
+  });
+  el.testVoice.addEventListener('click', () => {
+    if (isNeural()) {
+      if (state.playing) pause();
+      preferPlayback();
+      unlockPlayer();
+      el.testVoice.disabled = true;
+      neuralRequest('Olá! Esta é a voz neural que vai ler o seu texto.').then((m) => {
+        const pcm = toInt16(m.samples);
+        neural.mode = 'live';
+        neural.loadedKey = '';
+        el.player.src = URL.createObjectURL(wavBlob([pcm.buffer], pcm.length));
+        setPlayerRate();
+        return el.player.play();
+      }).catch((err) => {
+        if (neural.status !== 'error') showToast('Não consegui tocar a amostra. Toque de novo.');
+      }).finally(() => { el.testVoice.disabled = false; });
+      return;
+    }
+    if (isCloud()) {
+      if (state.playing) pause();
+      state.cloudReading++;
+      state.cloudStarted = 0;
+      state.cloudResume = null;
+      state.cloudTest = true;
+      state.cloud.speak('Olá! Esta é a voz que vai ler o seu texto.', { voice: state.cloudVoice, language: 'pt-BR' })
+        .catch((e) => {
+          state.cloudTest = false;
+          const code = e && e.code;
+          if (code === 'not_granted' || code === 'unavailable') cloudGone(code);
+          else if (code === 'rate_limited') showToast(CLOUD_TEXT.limit);
+        });
+      return;
+    }
+    if (!synth) return;
+    if (state.playing) pause();
+    preferPlayback();
+    const tok = ++state.token;
+    armStartCheck(tok);
+    speakNow(() => {
+      if (tok !== state.token) return;
+      const u = makeUtterance('Olá! Esta é a voz que vai ler o seu texto.');
+      const t0 = performance.now();
+      u.onstart = markStarted;
+      u.onend = () => { if (performance.now() - t0 > 600) markStarted(); };
+      state.utterance = u;
+      synth.speak(u);
+    });
+  });
+  el.rate.addEventListener('input', () => setRate(Number(el.rate.value), false));
+  el.rate.addEventListener('change', () => { if (state.playing && !isCloud() && !isNeural()) restartSoon(); });
+  el.pitch.addEventListener('input', () => setPitch(Number(el.pitch.value), false));
+  el.pitch.addEventListener('change', () => { if (state.playing) restartSoon(); });
+  el.pauseSelect.addEventListener('change', () => {
+    state.paraPause = Number(el.pauseSelect.value) || 0;
+    store.set('pause', state.paraPause);
+    if (NEURAL) refreshExportUI();
+  });
+  el.normalize.addEventListener('change', () => {
+    state.normalize = el.normalize.checked;
+    store.set('normalize', state.normalize);
+    computeSpeech();
+    if (NEURAL) refreshExportUI();
+    if (state.playing) restartSoon();
+  });
+
+  el.voiceChip.addEventListener('click', () => {
+    el.settings.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    if (!el.voiceSelect.disabled) el.voiceSelect.focus({ preventScroll: true });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target instanceof Element ? e.target : document.body;
+    if (t.closest('textarea, input, select, [contenteditable="true"]')) return;
+    if (e.key === ' ' || e.code === 'Space') {
+      if (t.closest('button, a, summary')) return;
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      step(1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      step(-1);
+    }
+  });
+
+  const markScroll = () => { state.userScrollAt = Date.now(); };
+  window.addEventListener('wheel', markScroll, { passive: true });
+  window.addEventListener('touchmove', markScroll, { passive: true });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !state.playing) return;
+    lockScreen();
+    if (!isCloud() && !isNeural() && synth && !synth.speaking && !synth.pending) play(state.index);
+  });
+  window.addEventListener('pagehide', () => { if (synth) synth.cancel(); });
+
+  const setBarH = () => document.documentElement.style.setProperty('--bar-h', el.transport.offsetHeight + 'px');
+  if ('ResizeObserver' in window) new ResizeObserver(setBarH).observe(el.transport);
+  window.addEventListener('resize', setBarH);
+  setBarH();
+
+  /* ---------- início ---------- */
+  function init() {
+    state.normalize = store.get('normalize', true) !== false;
+    el.normalize.checked = state.normalize;
+    const savedPause = Number(store.get('pause', 700));
+    state.paraPause = PAUSES.includes(savedPause) ? savedPause : 700;
+    el.pauseSelect.value = String(state.paraPause);
+    setPitch(Number(store.get('pitch', 1)) || 1, false);
+    setRate(Number(store.get('rate', 1)) || 1, false);
+    const saved = store.get('text', null);
+    setText(typeof saved === 'string' ? saved : SAMPLE);
+    showView(state.sentences.length ? 'read' : 'edit');
+    state.cloudLang = store.get('cloudLang', 'pt-BR') === '' ? '' : 'pt-BR';
+    el.cloudLang.value = state.cloudLang;
+    if (NEURAL) {
+      setupNeural();
+      const saved = store.get('voice', null);
+      if (saved == null || String(saved).startsWith('neural:')) {
+        state.engine = 'neural';
+        const v = saved ? String(saved).slice(7) : 'pf_dora';
+        neural.voice = NEURAL_VOICES.some((x) => x[0] === v) ? v : 'pf_dora';
+      }
+      renderVoiceSelect();
+      refreshVoiceUI();
+      if (store.get('neuralModel', '') === neural.quality) neuralStart({ cachedOnly: true });
+    }
+    const cloudReady = initCloudVoice().catch(() => {});
+    initVoices(cloudReady);
+    // Abre as dicas de voz se, depois de carregar, só houver voz básica.
+    setTimeout(() => {
+      if (isCloud() || isNeural()) return;
+      const x = state.voices.find((y) => y.v === state.voice);
+      if (!x || x.score < 130) el.help.open = true;
+    }, 1500);
+  }
+  init();
+
+  /*<neural>*/
+  // Service worker: abre sem internet e libera vários núcleos para a voz neural (precisa recarregar uma vez).
+  const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if ('serviceWorker' in navigator && secure) {
+    navigator.serviceWorker.register('sw.js').then(() => {
+      // Na primeira visita a página ainda não passa pelo service worker: recarrega uma vez.
+      if (self.crossOriginIsolated || navigator.serviceWorker.controller) return;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        let done = true;
+        try { done = sessionStorage.getItem('lpm:coi') === '1'; sessionStorage.setItem('lpm:coi', '1'); } catch (e) { /* sem storage */ }
+        if (!done && !state.playing) location.reload();
+      }, { once: true });
+    }).catch(() => { /* segue sem service worker */ });
+  }
+  /*</neural>*/
+})();
+</script>
+</body>
+</html>
