@@ -1,0 +1,78 @@
+name: App iOS
+
+# Compila o app de iPhone num Mac do GitHub (grátis em repositório público) e publica o .ipa
+# sem assinatura na release "app-ios". O SideStore assina com o Apple ID na hora de instalar.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ferramentas
+        run: |
+          brew install xcodegen
+          xcodebuild -version
+
+      - name: Gerar o projeto Xcode
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Compilar
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project LePraMim.xcodeproj \
+            -scheme LePraMim \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log | grep -E "error:|warning: .*nearly matches|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Empacotar o .ipa
+        working-directory: ios
+        run: |
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          test -n "$APP"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry LePraMim.ipa Payload
+          ls -la LePraMim.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LePraMim-ipa
+          path: |
+            ios/LePraMim.ipa
+            ios/build.log
+
+      - name: Publicar na release app-ios
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete app-ios --yes --cleanup-tag || true
+          gh release create app-ios ios/LePraMim.ipa \
+            --title "App de iPhone (instalar com SideStore)" \
+            --notes "Versão compilada do commit ${GITHUB_SHA::7}. Baixe o LePraMim.ipa no iPhone e instale pelo SideStore." \
+            --target "$GITHUB_SHA" --latest=false

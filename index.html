@@ -1078,6 +1078,10 @@
   const NEURAL = !!el.neuralCard && typeof Worker !== 'undefined' && typeof WebAssembly !== 'undefined';
   const NEURAL_VOICES = [['pf_dora', 'Dora', 'feminina'], ['pm_alex', 'Alex', 'masculina'], ['pm_santa', 'Santa', 'masculina']];
   const isNeural = () => NEURAL && state.engine === 'neural';
+  // Dentro do app de iPhone o modelo roda em código nativo, muito mais rápido que no navegador.
+  // A página continua cuidando de texto -> fonemas -> tokens; o app devolve o áudio.
+  const NATIVE = NEURAL && !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.lepramim);
+  const nativeCall = (msg) => window.webkit.messageHandlers.lepramim.postMessage(msg);
   const canSpeak = () => !!synth || !!state.cloud || NEURAL;
   const rateBounds = () => (isCloud() ? CLOUD_RATE : DEVICE_RATE);
   const cloudRate = () => clamp(state.rate, CLOUD_RATE[0], CLOUD_RATE[1]);
@@ -1808,12 +1812,31 @@
       w.onmessage = onNeuralMessage;
       w.onerror = (e) => neuralFailed((e && e.message) || 'o navegador não conseguiu iniciar a voz neural');
       neural.worker = w;
-      w.postMessage({ type: 'init', quality: neural.quality, device: 'auto', cachedOnly: !!opts.cachedOnly });
+      neural.workerReady = false;
+      neural.nativeReady = !NATIVE;
+      w.postMessage({ type: 'init', quality: neural.quality, g2pOnly: NATIVE, cachedOnly: !NATIVE && !!opts.cachedOnly });
+      if (NATIVE) {
+        nativeCall({ type: 'prepare', quality: neural.quality, cachedOnly: !!opts.cachedOnly }).then((info) => {
+          neural.nativeReady = true;
+          neural.nativeInfo = info || {};
+          neuralMaybeReady();
+        }).catch((err) => neuralFailed(String(err && err.message || err)));
+      }
     } catch (e) {
       neuralFailed(String(e && e.message || e));
     }
     refreshNeuralUI();
     return neural.ready;
+  }
+
+  function neuralMaybeReady() {
+    if (!neural.workerReady || !neural.nativeReady || neural.status !== 'loading') return;
+    neural.status = 'ready';
+    store.set('neuralModel', neural.quality);
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (err) { /* opcional */ }
+    if (neural.readyResolve) neural.readyResolve();
+    refreshNeuralUI();
+    pumpNeural();
   }
 
   function neuralStop(reason) {
@@ -1844,17 +1867,13 @@
     const m = e.data || {};
     if (m.type === 'progress') { if (m.stage === 'modelo') neuralProgress(m.loaded, m.total, m.cached); return; }
     if (m.type === 'ready') {
-      neural.status = 'ready';
       neural.device = m.device;
       neural.threads = m.threads || 1;
-      store.set('neuralModel', neural.quality);
-      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (err) { /* opcional */ }
-      if (neural.readyResolve) neural.readyResolve();
-      refreshNeuralUI();
-      pumpNeural();
+      neural.workerReady = true;
+      neuralMaybeReady();
       return;
     }
-    if (m.type === 'audio') {
+    if (m.type === 'audio' || m.type === 'prep') {
       const r = neural.reqs.get(m.id);
       neural.reqs.delete(m.id);
       if (r) r.resolve(m);
@@ -1867,12 +1886,33 @@
     }
   }
 
-  function neuralRequest(text) {
-    return neuralStart().then(() => new Promise((resolve, reject) => {
+  function workerCall(msg) {
+    return new Promise((resolve, reject) => {
       const id = neural.nextId++;
       neural.reqs.set(id, { resolve, reject });
-      neural.worker.postMessage({ type: 'generate', id, text, voice: neural.voice });
-    }));
+      neural.worker.postMessage({ ...msg, id });
+    });
+  }
+
+  function base64ToInt16(b64) {
+    const bin = atob(b64 || '');
+    const bytes = new Uint8Array(bin.length & ~1);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Int16Array(bytes.buffer);
+  }
+
+  // Gera uma frase. Devolve {pcm: Int16Array a 24 kHz, ms: tempo de geração}.
+  function neuralRequest(text) {
+    return neuralStart().then(() => {
+      if (!NATIVE) {
+        return workerCall({ type: 'generate', text, voice: neural.voice }).then((m) => ({ pcm: toInt16(m.samples), ms: m.ms }));
+      }
+      return workerCall({ type: 'prep', text }).then((p) => {
+        if (!p.ids || p.ids.length <= 2) return { pcm: new Int16Array(0), ms: 0 };
+        return nativeCall({ type: 'synthesize', ids: p.ids, count: p.count, voice: neural.voice, speed: 1 })
+          .then((r) => ({ pcm: base64ToInt16(r && r.audio), ms: (r && r.ms) || 0 }));
+      });
+    });
   }
 
   // Escolhe a próxima frase a gerar: primeiro as que vão tocar, depois as da exportação.
@@ -1900,7 +1940,7 @@
     const key = neuralKey(s);
     neural.inflight = true;
     neuralRequest(s.speak).then((m) => {
-      const pcm = toInt16(m.samples);
+      const pcm = m.pcm;
       const seconds = pcm.length / NEURAL_SR;
       neural.cache.set(key, { pcm, seconds, url: URL.createObjectURL(wavBlob([pcm.buffer], pcm.length)) });
       if (seconds > 0.4 && m.ms) {
@@ -2267,20 +2307,23 @@
     el.neuralQuality.disabled = st === 'loading';
     if (st !== 'loading') el.neuralMeter.hidden = true;
     if (st === 'ready') {
-      const where = neural.device === 'webgpu' ? 'Usando a GPU do aparelho.'
+      const where = NATIVE ? 'Rodando no app, em código nativo.'
         : `Usando o processador do aparelho (${neural.threads > 1 ? neural.threads + ' núcleos' : '1 núcleo'}).`;
       el.neuralNote.textContent = where + neuralSpeedText();
     } else if (st === 'error') {
       el.neuralNote.textContent = `Não carregou (${neural.error}). Confira a internet e tente de novo, ou use a qualidade Leve.`;
     } else if (st === 'none') {
-      el.neuralNote.textContent = `Roda no próprio celular, de graça e sem limite. Baixa uma vez (${NEURAL_MB[neural.quality]} MB) e depois funciona até sem internet. Prefira o Wi-Fi.`;
+      el.neuralNote.textContent = NATIVE
+        ? `Roda no próprio iPhone, em código nativo. Baixa uma vez (${NEURAL_MB[neural.quality]} MB) e depois funciona até sem internet. Prefira o Wi-Fi.`
+        : `Roda no próprio celular, de graça e sem limite. Baixa uma vez (${NEURAL_MB[neural.quality]} MB) e depois funciona até sem internet. Prefira o Wi-Fi.`;
     }
     refreshExportUI();
   }
 
   function setupNeural() {
     if (!NEURAL) return;
-    neural.quality = store.get('neuralQuality', 'q8') === 'fp32' ? 'fp32' : 'q8';
+    neural.quality = store.get('neuralQuality', NATIVE ? 'fp32' : 'q8') === 'fp32' ? 'fp32' : 'q8';
+    if (NATIVE) window.__lpmNativeProgress = (loaded, total) => neuralProgress(loaded, total, false);
     el.player.addEventListener('ended', onPlayerEnded);
     el.player.addEventListener('timeupdate', onPlayerTime);
     el.player.addEventListener('pause', () => {
@@ -2297,7 +2340,7 @@
       neural.quality = q;
       store.set('neuralQuality', q);
       refreshNeuralUI();
-      if (store.get('neuralModel', '') === q) neuralStart({ cachedOnly: true });
+      if (NATIVE || store.get('neuralModel', '') === q) neuralStart({ cachedOnly: true });
     });
     el.exportBtn.addEventListener('click', toggleExport);
     el.exportPlay.addEventListener('click', () => {
@@ -2696,7 +2739,7 @@
       unlockPlayer();
       el.testVoice.disabled = true;
       neuralRequest('Olá! Esta é a voz neural que vai ler o seu texto.').then((m) => {
-        const pcm = toInt16(m.samples);
+        const pcm = m.pcm;
         neural.mode = 'live';
         neural.loadedKey = '';
         el.player.src = URL.createObjectURL(wavBlob([pcm.buffer], pcm.length));
@@ -2816,7 +2859,7 @@
       }
       renderVoiceSelect();
       refreshVoiceUI();
-      if (store.get('neuralModel', '') === neural.quality) neuralStart({ cachedOnly: true });
+      if (NATIVE || store.get('neuralModel', '') === neural.quality) neuralStart({ cachedOnly: true });
     }
     const cloudReady = initCloudVoice().catch(() => {});
     initVoices(cloudReady);

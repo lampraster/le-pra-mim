@@ -9,7 +9,7 @@
 //   {type:'error', id?, message}
 
 import { createG2P } from './g2p-ptbr.js';
-import { makeTokenizer, synthesize } from './kokoro-core.js';
+import { makeTokenizer, synthesize, MAX_PHONEMES } from './kokoro-core.js';
 
 // onnxruntime-web 1.22.0 servido junto com o app (vendor/ort); modelo e vozes vêm do Hugging Face,
 // numa revisão fixa, e ficam guardados no aparelho depois do primeiro download.
@@ -85,7 +85,7 @@ async function loadVoice(name) {
   return arr;
 }
 
-async function init({ quality = 'q8', modelBase, cachedOnly: onlyCached = false }) {
+async function init({ quality = 'q8', modelBase, cachedOnly: onlyCached = false, g2pOnly = false }) {
   if (modelBase) MODEL_BASE = modelBase;
   cachedOnly = onlyCached;
   // Fonemas: espeak-ng (só os dados do português) + regras do Kokoro.
@@ -96,6 +96,12 @@ async function init({ quality = 'q8', modelBase, cachedOnly: onlyCached = false 
   if (!tokenize) {
     const tk = JSON.parse(new TextDecoder().decode(await fetchCached(MODEL_BASE + 'tokenizer.json', 'vocabulário')));
     tokenize = makeTokenizer(tk.model.vocab);
+  }
+  // No app de iPhone o modelo roda em código nativo: aqui fica só texto -> fonemas -> tokens.
+  if (g2pOnly) {
+    cachedOnly = false;
+    post({ type: 'ready', device: 'native', quality });
+    return;
   }
   // Só processador (WebAssembly): no caminho WebGPU o modelo leve gera ruído e o completo não pôde ser
   // conferido, então a GPU fica de fora. Com isolamento de origem, usa vários núcleos.
@@ -131,6 +137,12 @@ self.onmessage = (e) => {
       if (msg.type === 'init') await init(msg);
       else if (msg.type === 'generate') await generate(msg);
       else if (msg.type === 'phonemize') post({ type: 'phonemes', id: msg.id, phonemes: g2p ? g2p(msg.text) : '' });
+      else if (msg.type === 'prep') {
+        // Para o motor nativo: os mesmos tokens e o mesmo tamanho de fonemas que synthesize() usaria.
+        let ps = g2p(msg.text);
+        if ([...ps].length > MAX_PHONEMES) ps = [...ps].slice(0, MAX_PHONEMES).join('');
+        post({ type: 'prep', id: msg.id, ids: ps ? tokenize(ps) : [], count: [...ps].length, phonemes: ps });
+      }
     } catch (err) {
       post({ type: 'error', id: msg.id, message: String(err && err.message || err) });
     }

@@ -24,6 +24,19 @@ Para ouvir com a tela bloqueada ou guardar o áudio, use **Gerar áudio do texto
   PDFs digitalizados (só imagem) não têm texto para ler.
 - Também usa as vozes do sistema, se você preferir.
 
+## App de iPhone
+
+No Safari, o iPhone gera a voz bem devagar. O app de iPhone (pasta `ios/`) usa esta mesma interface, mas roda o modelo em código nativo, com ONNX Runtime. Vantagens:
+
+- é muitas vezes mais rápido;
+- usa a qualidade máxima;
+- continua tocando com a tela bloqueada.
+
+Para instalar:
+
+1. O GitHub Actions (`.github/workflows/ios.yml`) compila o app num Mac e publica o `LePraMim.ipa`, sem assinatura, na release `app-ios`.
+2. Instale com o [SideStore](https://sidestore.io), que assina o app com o seu Apple ID gratuito. Pela regra da Apple, o app precisa ser renovado a cada 7 dias, e o SideStore faz isso pelo próprio iPhone.
+
 ## Como funciona
 
 A voz neural roda toda no navegador:
@@ -50,5 +63,6 @@ Depois abra `http://localhost:8000`.
 | --- | --- | --- |
 | Kokoro-82M (modelo e vozes) | Apache-2.0 | baixado de `onnx-community/Kokoro-82M-v1.0-ONNX` |
 | ONNX Runtime Web 1.22.0 | MIT | `vendor/ort/` |
+| ONNX Runtime para iOS (Swift Package) | MIT | baixado na compilação do app (`ios/project.yml`) |
 | PDF.js 5.4.296 (build legacy) | Apache-2.0 | `vendor/pdfjs/` |
 | eSpeak NG (build Emscripten do projeto Echogarden, só dados do português) | GPL-3.0 | `espeak-pt/`. O código-fonte está em [echogarden-project/espeak-ng](https://github.com/echogarden-project/espeak-ng) |
