@@ -388,6 +388,28 @@
   .export { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
   .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .neural .btn-line:disabled { opacity: .5; cursor: default; }
+  .pdf-panel {
+    display: grid;
+    gap: 12px;
+    margin: 14px;
+    margin-bottom: 0;
+    padding: 14px;
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    background: var(--accent-soft);
+  }
+  .pdf-title { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+  .pdf-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .pdf-range input {
+    width: 4em;
+    font-size: 16px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    font-variant-numeric: tabular-nums;
+  }
+  .pdf-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .help { border-top: 1px solid var(--line); padding-top: 16px; }
   .help summary { cursor: pointer; font-weight: 600; }
   .help .note { margin-top: 10px; }
@@ -512,11 +534,28 @@
         </div>
         <div class="sheet-actions">
           <span class="badge" id="sampleBadge" hidden>Exemplo</span>
-          <button type="button" class="btn-ghost" id="openBtn">Abrir .txt</button>
-          <input type="file" id="fileInput" accept=".txt,.md,.markdown,text/plain,text/markdown" hidden>
+          <button type="button" class="btn-ghost" id="openBtn">Abrir arquivo</button>
+          <input type="file" id="fileInput" accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf" hidden>
           <button type="button" class="btn-ghost" id="clearBtn">Limpar</button>
         </div>
       </div>
+      <!--<neural>-->
+      <div class="pdf-panel" id="pdfPanel" hidden>
+        <p class="pdf-title" id="pdfTitle"></p>
+        <div class="pdf-range" id="pdfRange">
+          <label for="pdfFrom">Páginas</label>
+          <input type="number" id="pdfFrom" inputmode="numeric" min="1" value="1" aria-label="Primeira página">
+          <span aria-hidden="true">a</span>
+          <input type="number" id="pdfTo" inputmode="numeric" min="1" value="1" aria-label="Última página">
+        </div>
+        <div class="meter" id="pdfMeter" hidden><span id="pdfMeterFill"></span></div>
+        <p class="note" id="pdfNote"></p>
+        <div class="pdf-actions">
+          <button type="button" class="btn-line" id="pdfImport">Abrir o texto</button>
+          <button type="button" class="btn-ghost" id="pdfCancel">Cancelar</button>
+        </div>
+      </div>
+      <!--</neural>-->
       <div class="read-view" id="readView" role="tabpanel" aria-labelledby="tabRead" lang="pt-BR"></div>
       <div class="edit-view" id="editView" role="tabpanel" aria-labelledby="tabEdit" hidden>
         <label class="sr-only" for="textInput">Texto</label>
@@ -656,6 +695,8 @@
     neuralMeterFill: $('neuralMeterFill'), neuralDownload: $('neuralDownload'), neuralQuality: $('neuralQuality'),
     exportBtn: $('exportBtn'), exportMeter: $('exportMeter'), exportMeterFill: $('exportMeterFill'), exportNote: $('exportNote'),
     exportActions: $('exportActions'), exportPlay: $('exportPlay'), exportSave: $('exportSave'), player: $('player'),
+    pdfPanel: $('pdfPanel'), pdfTitle: $('pdfTitle'), pdfRange: $('pdfRange'), pdfFrom: $('pdfFrom'), pdfTo: $('pdfTo'),
+    pdfMeter: $('pdfMeter'), pdfMeterFill: $('pdfMeterFill'), pdfNote: $('pdfNote'), pdfImport: $('pdfImport'), pdfCancel: $('pdfCancel'),
     rate: $('rate'), rateOut: $('rateOut'), pitch: $('pitch'), pitchOut: $('pitchOut'),
     pauseSelect: $('pauseSelect'), normalize: $('normalize'), help: $('help'),
     transport: $('transport'), prevBtn: $('prevBtn'), playBtn: $('playBtn'), playLabel: $('playLabel'),
@@ -2432,23 +2473,127 @@
     if (apply && state.playing) restartSoon();
   }
 
+  function replaceText(text, label) {
+    const prev = state.view === 'edit' ? el.textInput.value : state.text;
+    if (state.playing) pause();
+    setText(text);
+    showView('read');
+    window.scrollTo({ top: 0 });
+    showToast(label, 'Desfazer', () => setText(prev));
+  }
+
   async function openFile(file) {
+    const looksPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
+    if (looksPdf) {
+      if (el.pdfPanel) openPdfFile(file);
+      else showToast('Esta versão do app não abre PDF.');
+      return;
+    }
     if (file.size > 5 * 1024 * 1024) { showToast('Arquivo grande demais. Use um .txt de até 5 MB.'); return; }
     try {
       const buf = await file.arrayBuffer();
       let text;
       try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
       catch (e) { text = new TextDecoder('windows-1252').decode(buf); }
-      const prev = state.view === 'edit' ? el.textInput.value : state.text;
-      if (state.playing) pause();
-      setText(text);
-      showView('read');
-      window.scrollTo({ top: 0 });
-      showToast(`“${file.name}” aberto.`, 'Desfazer', () => setText(prev));
+      replaceText(text, `“${file.name}” aberto.`);
     } catch (e) {
-      showToast('Não consegui abrir esse arquivo. Tente um .txt.');
+      showToast('Não consegui abrir esse arquivo. Tente um .txt ou um PDF.');
     }
   }
+
+  /*<neural>*/
+  /* ---------- PDF ---------- */
+  // Livros e PDFs longos perguntam o intervalo de páginas antes de extrair.
+  const PDF_DIRECT_MAX = 30;
+  const pdf = { doc: null, name: '', busy: false, cancel: false, lib: null };
+
+  function pdfPanel(show) {
+    el.pdfPanel.hidden = !show;
+    if (show) el.pdfPanel.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+
+  function pdfReset() {
+    pdf.cancel = true;
+    if (pdf.doc) { try { pdf.doc.destroy(); } catch (e) { /* ignora */ } }
+    pdf.doc = null;
+    pdf.busy = false;
+    pdfPanel(false);
+  }
+
+  async function openPdfFile(file) {
+    pdfReset();
+    pdf.cancel = false;
+    pdf.name = file.name || 'documento.pdf';
+    el.pdfTitle.textContent = pdf.name;
+    el.pdfRange.hidden = true;
+    el.pdfImport.hidden = true;
+    el.pdfMeter.hidden = true;
+    el.pdfNote.textContent = 'Abrindo o PDF…';
+    pdfPanel(true);
+    try {
+      if (!pdf.lib) pdf.lib = await import(new URL('pdf-texto.js', location.href).href);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      pdf.doc = await pdf.lib.openPdf(bytes);
+      const n = pdf.doc.numPages;
+      el.pdfTitle.textContent = `${pdf.name} · ${fmtNum(n)} ${n === 1 ? 'página' : 'páginas'}`;
+      el.pdfFrom.max = String(n);
+      el.pdfTo.max = String(n);
+      el.pdfFrom.value = '1';
+      el.pdfTo.value = String(n);
+      if (n <= PDF_DIRECT_MAX) { importPdfPages(); return; }
+      el.pdfRange.hidden = false;
+      el.pdfImport.hidden = false;
+      el.pdfNote.textContent = 'Escolha as páginas que quer ouvir. Dá para pular capa, sumário e índice.';
+    } catch (err) {
+      pdf.busy = false;
+      el.pdfNote.textContent = String(err && err.message || err);
+      el.pdfImport.hidden = true;
+    }
+  }
+
+  async function importPdfPages() {
+    if (!pdf.doc || pdf.busy) return;
+    const n = pdf.doc.numPages;
+    const from = clamp(parseInt(el.pdfFrom.value, 10) || 1, 1, n);
+    const to = clamp(parseInt(el.pdfTo.value, 10) || n, from, n);
+    pdf.busy = true;
+    pdf.cancel = false;
+    el.pdfImport.hidden = true;
+    el.pdfRange.hidden = true;
+    el.pdfMeter.hidden = false;
+    el.pdfMeterFill.style.width = '0%';
+    try {
+      const res = await pdf.lib.extractText(pdf.doc, {
+        from, to,
+        shouldStop: () => pdf.cancel,
+        onProgress: (done, total) => {
+          el.pdfMeterFill.style.width = Math.round(done / total * 100) + '%';
+          el.pdfNote.textContent = `Lendo a página ${fmtNum(from + done - 1)} de ${fmtNum(to)}…`;
+        },
+      });
+      pdf.busy = false;
+      if (res.scanned || !res.text.trim()) {
+        el.pdfMeter.hidden = true;
+        el.pdfNote.textContent = 'Este PDF parece ser uma digitalização (imagem de papel): não tem texto para ler. Funciona com PDFs em que dá para selecionar o texto.';
+        return;
+      }
+      const name = pdf.name;
+      const pages = res.pages;
+      pdfReset();
+      replaceText(res.text, `“${name}” aberto: ${fmtNum(pages)} ${pages === 1 ? 'página' : 'páginas'}.`);
+    } catch (err) {
+      pdf.busy = false;
+      if (String(err && err.message) === 'cancelado') return;
+      el.pdfMeter.hidden = true;
+      el.pdfNote.textContent = 'Não consegui ler o texto desse PDF.';
+    }
+  }
+
+  if (el.pdfPanel) {
+    el.pdfImport.addEventListener('click', importPdfPages);
+    el.pdfCancel.addEventListener('click', pdfReset);
+  }
+  /*</neural>*/
 
   /* ---------- eventos ---------- */
   el.playBtn.addEventListener('click', togglePlay);
