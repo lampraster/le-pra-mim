@@ -2322,7 +2322,9 @@
 
   function setupNeural() {
     if (!NEURAL) return;
-    neural.quality = store.get('neuralQuality', NATIVE ? 'fp32' : 'q8') === 'fp32' ? 'fp32' : 'q8';
+    // No app nativo, o modelo completo é ao mesmo tempo o melhor e o mais rápido: fica sempre ele.
+    neural.quality = NATIVE ? 'fp32' : (store.get('neuralQuality', 'q8') === 'fp32' ? 'fp32' : 'q8');
+    if (NATIVE) el.neuralQuality.closest('.field').hidden = true;
     if (NATIVE) window.__lpmNativeProgress = (loaded, total) => neuralProgress(loaded, total, false);
     el.player.addEventListener('ended', onPlayerEnded);
     el.player.addEventListener('timeupdate', onPlayerTime);

@@ -1,10 +1,6 @@
 import Foundation
-// ONNX Runtime oficial da Microsoft, pelo CocoaPods (pod onnxruntime-objc).
-#if canImport(onnxruntime_objc)
-import onnxruntime_objc
-#else
-import OnnxRuntimeBindings
-#endif
+// O ONNX Runtime (pacote oficial Microsoft.ML.OnnxRuntime, do NuGet) é usado pela API em C,
+// através de KokoroORT/kokoro_ort.c (importado pelo LePraMim-Bridging-Header.h).
 
 /// Gera a fala com o Kokoro-82M (ONNX) em código nativo.
 ///
@@ -36,8 +32,7 @@ final class KokoroEngine: NSObject, URLSessionDownloadDelegate {
     var onProgress: ((Int64, Int64) -> Void)?
 
     private let work = DispatchQueue(label: "lepramim.kokoro", qos: .userInitiated)
-    private var env: ORTEnv?
-    private var session: ORTSession?
+    private var session: UnsafeMutableRawPointer?
     private var loadedQuality = ""
     private var voices: [String: [Float]] = [:]
     private var threads = 1
@@ -96,14 +91,22 @@ final class KokoroEngine: NSObject, URLSessionDownloadDelegate {
 
     private func loadSession(file: URL, quality: String) throws {
         if session != nil && loadedQuality == quality { return }
+        if let old = session { kort_destroy(old) }
         session = nil
-        if env == nil { env = try ORTEnv(loggingLevel: .warning) }
-        let options = try ORTSessionOptions()
-        try options.setGraphOptimizationLevel(.all)
         threads = max(1, min(4, ProcessInfo.processInfo.activeProcessorCount))
-        try options.setIntraOpNumThreads(Int32(threads))
-        session = try ORTSession(env: env!, modelPath: file.path, sessionOptions: options)
+        var error: UnsafeMutablePointer<CChar>?
+        guard let created = kort_create(file.path, Int32(threads), &error) else {
+            throw EngineError.model(Self.message(error) ?? "O modelo não abriu.")
+        }
+        session = created
         loadedQuality = quality
+    }
+
+    /// Converte e libera uma mensagem de erro vinda do C.
+    private static func message(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
+        guard let pointer = pointer else { return nil }
+        defer { kort_free(pointer) }
+        return String(cString: pointer)
     }
 
     // MARK: - Vozes
@@ -168,18 +171,20 @@ final class KokoroEngine: NSObject, URLSessionDownloadDelegate {
         let style = Array(pack[(row * Self.styleDim)..<((row + 1) * Self.styleDim)])
         let start = Date()
 
-        let idsData = ids.withUnsafeBufferPointer { NSMutableData(data: Data(buffer: $0)) }
-        let styleData = style.withUnsafeBufferPointer { NSMutableData(data: Data(buffer: $0)) }
-        let speedData = [speed].withUnsafeBufferPointer { NSMutableData(data: Data(buffer: $0)) }
-        let inputs: [String: ORTValue] = [
-            "input_ids": try ORTValue(tensorData: idsData, elementType: .int64, shape: [1, NSNumber(value: ids.count)]),
-            "style": try ORTValue(tensorData: styleData, elementType: .float, shape: [1, NSNumber(value: Self.styleDim)]),
-            "speed": try ORTValue(tensorData: speedData, elementType: .float, shape: [1]),
-        ]
-        let outputs = try session.run(withInputs: inputs, outputNames: ["waveform"], runOptions: nil)
-        guard let wave = outputs["waveform"] else { throw EngineError.model("O modelo não devolveu áudio.") }
-        let raw = try wave.tensorData() as Data
-        let samples = raw.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        var out: UnsafeMutablePointer<Float>?
+        var sampleCount = 0
+        var error: UnsafeMutablePointer<CChar>?
+        let status = ids.withUnsafeBufferPointer { idsBuffer in
+            style.withUnsafeBufferPointer { styleBuffer in
+                kort_run(session, idsBuffer.baseAddress, idsBuffer.count, styleBuffer.baseAddress, styleBuffer.count,
+                         speed, &out, &sampleCount, &error)
+            }
+        }
+        guard status == 0, let audioPointer = out else {
+            throw EngineError.model(Self.message(error) ?? "O modelo não devolveu áudio.")
+        }
+        defer { kort_free(audioPointer) }
+        let samples = Array(UnsafeBufferPointer(start: audioPointer, count: sampleCount))
 
         var pcm = [Int16](repeating: 0, count: samples.count)
         for i in 0..<samples.count {

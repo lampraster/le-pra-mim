@@ -1,0 +1,6 @@
+Vendor/
+build/
+Payload/
+*.ipa
+*.xcodeproj/
+build.log
