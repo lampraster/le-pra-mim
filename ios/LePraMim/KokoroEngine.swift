@@ -1,5 +1,10 @@
 import Foundation
+// ONNX Runtime oficial da Microsoft, pelo CocoaPods (pod onnxruntime-objc).
+#if canImport(onnxruntime_objc)
+import onnxruntime_objc
+#else
 import OnnxRuntimeBindings
+#endif
 
 /// Gera a fala com o Kokoro-82M (ONNX) em código nativo.
 ///

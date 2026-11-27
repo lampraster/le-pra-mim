@@ -28,24 +28,27 @@ jobs:
       - name: Ferramentas
         run: |
           brew install xcodegen
+          which pod || brew install cocoapods
           xcodebuild -version
+          pod --version
 
-      - name: Gerar o projeto Xcode
+      - name: Gerar o projeto Xcode e instalar o ONNX Runtime
         working-directory: ios
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          pod install --repo-update
 
       - name: Compilar
         working-directory: ios
         run: |
           set -o pipefail
           xcodebuild \
-            -project LePraMim.xcodeproj \
+            -workspace LePraMim.xcworkspace \
             -scheme LePraMim \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
-            -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee build.log | grep -E "error:|warning: .*nearly matches|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log

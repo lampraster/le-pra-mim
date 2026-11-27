@@ -4,19 +4,12 @@ options:
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
-packages:
-  OnnxRuntime:
-    url: https://github.com/microsoft/onnxruntime-swift-package-manager
-    from: "1.20.0"
 targets:
   LePraMim:
     type: application
     platform: iOS
     sources:
       - path: LePraMim
-    dependencies:
-      - package: OnnxRuntime
-        product: onnxruntime
     info:
       path: LePraMim/Info.plist
       properties:
